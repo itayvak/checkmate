@@ -12,6 +12,10 @@
     --color-on-good: rgb(0 74 66);
     --color-good-container: rgb(0 102 90);
     --color-on-good-container: rgb(137 227 218);
+    --color-warn: rgb(255 220 138);
+    --color-on-warn: rgb(105 80 0);
+    --color-warn-container: rgb(147 112 0);
+    --color-on-warn-container: rgb(255 237 204);
     --color-background: rgb(17 19 24);
     --color-on-background: rgb(225 226 232);
     --color-surface: rgb(17 19 24);
@@ -28,7 +32,7 @@
     --color-surface-container-high: rgb(40 42 46);
     --color-surface-container-highest: rgb(51 53 57);
 
-    --radius-normal: 8px;
+    --radius-normal: 6px;
     --radius-big: 12px;
     --radius-pill: 9999px;
 
@@ -85,6 +89,13 @@ h1, h2, h3, h4, h5, h6 {
 
 .mono {
     font-family: var(--font-mono) !important;
+}
+
+code,
+pre,
+kbd,
+samp {
+    font-family: var(--font-mono);
 }
 
 /* Fineprint */
@@ -348,6 +359,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 .counts .good { color: var(--color-good); }
 .counts .bad { color: var(--color-bad); }
+.counts .warn { color: var(--color-warn); }
 
 /* Empty state */
 
@@ -435,6 +447,11 @@ h1, h2, h3, h4, h5, h6 {
 .chip.bad {
     background: color-mix(in srgb, var(--color-bad) 20%, transparent);
     border: 1px solid var(--color-bad);
+    color: var(--color-on-surface);
+}
+.chip.warn {
+    background: color-mix(in srgb, var(--color-warn) 20%, transparent);
+    border: 1px solid var(--color-warn);
     color: var(--color-on-surface);
 }
 
@@ -654,8 +671,8 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .status-badge.warn {
-    background: color-mix(in srgb, var(--color-primary) 15%, transparent);
-    color: var(--color-on-primary-container);
+    background: color-mix(in srgb, var(--color-warn) 15%, transparent);
+    color: var(--color-on-warn);
 }
 
 .split-layout {

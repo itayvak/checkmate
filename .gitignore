@@ -1,1 +1,39 @@
-grading_sessions.db
+# Python cache / build artifacts
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+dist/
+build/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Local data and logs
+*.db
+*.sqlite
+*.sqlite3
+*.log
+
+# Secrets / local config
+.env
+.env.*
+!.env.example
+
+# IDE / OS noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+.cursor/

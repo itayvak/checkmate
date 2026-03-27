@@ -24,7 +24,7 @@
 - `utils.py` — `parse_student_identity`.
 - Blueprints:
   - `routes_main` (`main`) — `GET /`, `GET /grade`.
-  - `routes_auto` (`auto`) — `GET /auto`, `POST /auto/generate`, `POST /auto/save/<id>`, `POST /auto/test/<id>`.
+  - `routes_auto` (`auto`) — `GET /auto`, `POST /auto/generate`, `POST /auto/save/<id>`, `POST /auto/project-run/<id>`.
   - `routes_grade` (`grading`) — `POST /grade/init`, `POST /grade/<session_id>/student`.
   - `routes_sessions` (`sessions`) — `GET /results/<session_id>`, `GET /sessions`, `GET /sessions/<id>/open`.
 
@@ -42,7 +42,7 @@ Jinja `url_for` uses blueprint endpoints, e.g. `main.index`, `grading.grade_init
 - No Flask signed-session cookies: the active run is identified by the URL path.
 
 ## Conventions And Assumptions
-- Student filename convention expected: `testName_studentID.py` (split on last underscore).
+- Student filename convention expected: `projectName_studentID.py` (split on last underscore).
 - Input text decoding: UTF-8 first, latin-1 fallback for student files.
 - Annotation type restricted to `"implementation"` in reviews.
 - Comments returned to students are Hebrew; internal description text is English.

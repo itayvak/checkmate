@@ -120,7 +120,7 @@ def grade_one_student(session_id: str):
         return jsonify({"ok": False, "error": "Missing student_file upload."}), 400
 
     filename = os.path.basename(sf.filename)
-    student_id, test_name = parse_student_identity(filename)
+    student_id, project_name = parse_student_identity(filename)
     try:
         try:
             student_code = sf.read().decode("utf-8")
@@ -161,12 +161,12 @@ def grade_one_student(session_id: str):
             auto_check_output=auto_check_output,
         )
     except Exception as e:
-        review = {"grade": "שגיאה", "summary": f"Processing error: {e}", "annotations": []}
+        review = {"grade": "fail", "summary": f"Processing error: {e}", "annotations": []}
 
     row = {
         "filename": filename,
         "student_id": student_id,
-        "test_name": test_name,
+        "project_name": project_name,
         "code": student_code,
         "code_lines": student_code.split("\n"),
         "grade": review["grade"],
@@ -184,7 +184,7 @@ def grade_one_student(session_id: str):
         {
             "filename": filename,
             "student_id": student_id,
-            "test_name": test_name,
+            "project_name": project_name,
             "code": student_code,
         }
     )

@@ -372,11 +372,11 @@ function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 function gc(grade) {
-  if (grade === 'עבר') return 'good';
+  if (grade === 'pass') return 'good';
   return 'bad';
 }
 function gradeLabel(grade) {
-  if (grade === 'עבר') return 'Pass';
+  if (grade === 'pass') return 'Pass';
   return 'Fail';
 }
 
@@ -387,12 +387,32 @@ let firstStudentPanel = true;
 let aiOpen = false;
 const aiThreadsByStudent = {};
 
+function compareByNumericLabel(a, b) {
+  const aLabel = String(a || '');
+  const bLabel = String(b || '');
+  const aNumMatch = aLabel.match(/\d+/);
+  const bNumMatch = bLabel.match(/\d+/);
+  const aHasNum = !!aNumMatch;
+  const bHasNum = !!bNumMatch;
+
+  if (aHasNum && bHasNum) {
+    const diff = Number(aNumMatch[0]) - Number(bNumMatch[0]);
+    if (diff !== 0) return diff;
+  } else if (aHasNum && !bHasNum) {
+    return -1;
+  } else if (!aHasNum && bHasNum) {
+    return 1;
+  }
+
+  return aLabel.localeCompare(bLabel, undefined, { numeric: true, sensitivity: 'base' });
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Sidebar
 // ─────────────────────────────────────────────────────────────────────────────
 
 function buildStats() {
-  const passed = students.filter(s => s.grade === 'עבר').length;
+  const passed = students.filter(s => s.grade === 'pass').length;
   const failed = students.length - passed;
   document.getElementById('stats').innerHTML = `
     <div class="stat-chip s-total"><span class="val">${students.length}</span><span class="lbl">Total</span></div>
@@ -405,7 +425,7 @@ function buildStudentList(filter = '') {
   const lower    = filter.toLowerCase();
   const filtered = students.filter(s =>
     !lower || s.student_id.toLowerCase().includes(lower) || s.filename.toLowerCase().includes(lower)
-  );
+  ).sort((a, b) => compareByNumericLabel(a.student_id, b.student_id));
   const useRowEnter = studentListEnterOnce && !filter;
   document.getElementById('studentList').innerHTML = filtered.map((s, i) => {
     const cls = gc(s.grade);
@@ -416,7 +436,7 @@ function buildStudentList(filter = '') {
       <div class="student-avatar ${cls}">${esc(s.student_id.slice(0,3).toUpperCase())}</div>
       <div class="student-info">
         <div class="student-name">${esc(s.student_id)}</div>
-        <div class="student-sub">${esc(s.test_name)}</div>
+        <div class="student-sub">${esc(s.project_name)}</div>
       </div>
       <span class="grade-pill ${cls}">${gradeLabel(s.grade)}</span>
     </div>`;
@@ -713,7 +733,8 @@ document.getElementById('aiQuestionInput').addEventListener('keydown', (e) => {
 if (students.length === 0) {
   document.getElementById('mainContent').classList.add('main-shell-enter');
 } else {
-  selectStudent(students[0].student_id);
+  const firstStudent = [...students].sort((a, b) => compareByNumericLabel(a.student_id, b.student_id))[0];
+  selectStudent(firstStudent.student_id);
 }
 </script>
 </body>

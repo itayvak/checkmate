@@ -6,8 +6,8 @@ def parse_student_identity(filename: str) -> tuple[str, str]:
     basename_no_ext = os.path.splitext(filename)[0]
     parts = basename_no_ext.rsplit("_", 1)
     student_id = parts[-1] if len(parts) > 1 else basename_no_ext
-    test_name = parts[0] if len(parts) > 1 else "test"
-    return student_id, test_name
+    project_name = parts[0] if len(parts) > 1 else "project"
+    return student_id, project_name
 
 
 def _row_checker_text(r: dict[str, Any]) -> Optional[str]:

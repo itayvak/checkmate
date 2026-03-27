@@ -285,8 +285,8 @@ def auto_save(session_id: str):
     return jsonify({"ok": True})
 
 
-@bp.post("/auto/test/<session_id>")
-def auto_test(session_id: str):
+@bp.post("/auto/project-run/<session_id>")
+def auto_project_run(session_id: str):
     data = load_automatic_check_session(session_id)
     if not data:
         return jsonify({"ok": False, "error": "Unknown automatic-check session id."}), 404
@@ -330,9 +330,9 @@ def auto_test(session_id: str):
                 }
             )
     except subprocess.TimeoutExpired:
-        return jsonify({"ok": False, "error": "Checker test timed out."}), 504
+        return jsonify({"ok": False, "error": "Checker run timed out."}), 504
     except Exception as e:
-        return jsonify({"ok": False, "error": f"Checker test failed: {e}"}), 500
+        return jsonify({"ok": False, "error": f"Checker run failed: {e}"}), 500
 
 
 @bp.post("/auto/run/<session_id>/execute")

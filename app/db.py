@@ -50,6 +50,24 @@ def init_db() -> None:
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS projects (
+                id TEXT PRIMARY KEY,
+                data TEXT NOT NULL,
+                created_at TEXT DEFAULT (datetime('now'))
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS project_source_sets (
+                project_id TEXT PRIMARY KEY,
+                data TEXT NOT NULL,
+                updated_at TEXT DEFAULT (datetime('now'))
+            )
+            """
+        )
         conn.commit()
 
 
@@ -94,7 +112,7 @@ def list_grading_sessions() -> list[dict[str, Any]]:
         results = payload.get("results")
         if not isinstance(results, dict):
             results = {}
-        passed = sum(1 for r in results.values() if isinstance(r, dict) and r.get("grade") == "עבר")
+        passed = sum(1 for r in results.values() if isinstance(r, dict) and r.get("grade") == "pass")
         failed = len(results) - passed if results else 0
         raw_title = payload.get("session_title")
         session_title = raw_title.strip() if isinstance(raw_title, str) else ""
@@ -197,6 +215,89 @@ def list_batch_run_sessions() -> list[dict[str, Any]]:
             }
         )
     return summaries
+
+
+def save_project(project_id: str, payload: dict) -> None:
+    blob = json.dumps(payload, ensure_ascii=False)
+    with _db() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO projects (id, data) VALUES (?, ?)",
+            (project_id, blob),
+        )
+        conn.commit()
+
+
+def load_project(project_id: str) -> Optional[dict[str, Any]]:
+    if not project_id:
+        return None
+    with _db() as conn:
+        row = conn.execute(
+            "SELECT data FROM projects WHERE id = ?",
+            (project_id,),
+        ).fetchone()
+    if not row:
+        return None
+    return json.loads(row["data"])
+
+
+def list_projects() -> list[dict[str, Any]]:
+    with _db() as conn:
+        rows = conn.execute(
+            """
+            SELECT id, data, created_at
+            FROM projects
+            ORDER BY datetime(created_at) DESC
+            """
+        ).fetchall()
+    summaries: list[dict[str, Any]] = []
+    for row in rows:
+        try:
+            payload = json.loads(row["data"])
+        except (json.JSONDecodeError, TypeError):
+            payload = {}
+        project_name = str(payload.get("name") or "").strip() or "Untitled project"
+        summaries.append(
+            {
+                "id": row["id"],
+                "created_at": row["created_at"] or "",
+                "name": project_name,
+                "assignment_name": payload.get("assignment_name") or "(no file)",
+                "model_solution_name": payload.get("model_solution_name") or "(no file)",
+            }
+        )
+    return summaries
+
+
+def update_project_checker(project_id: str, checker_script: str) -> None:
+    payload = load_project(project_id) or {}
+    payload["checker_script"] = checker_script
+    save_project(project_id, payload)
+
+
+def save_project_source_set(project_id: str, payload: dict) -> None:
+    blob = json.dumps(payload, ensure_ascii=False)
+    with _db() as conn:
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO project_source_sets (project_id, data, updated_at)
+            VALUES (?, ?, datetime('now'))
+            """,
+            (project_id, blob),
+        )
+        conn.commit()
+
+
+def load_project_source_set(project_id: str) -> Optional[dict[str, Any]]:
+    if not project_id:
+        return None
+    with _db() as conn:
+        row = conn.execute(
+            "SELECT data FROM project_source_sets WHERE project_id = ?",
+            (project_id,),
+        ).fetchone()
+    if not row:
+        return None
+    return json.loads(row["data"])
 
 
 init_db()

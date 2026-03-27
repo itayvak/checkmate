@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Check Mate</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}" />
+  <style>
+    body {
+      min-height: 100vh;
+      background: var(--color-background);
+      color: var(--color-on-surface);
+      margin: 0;
+      padding: 2.5rem 1.5rem 4rem;
+      box-sizing: border-box;
+    }
+    .home-wrap {
+      max-width: 760px;
+      margin: 0 auto;
+    }
+    .home-topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 2.5rem;
+    }
+    .home-brand {
+      font-size: 1.45rem;
+      color: var(--color-on-surface);
+      font-weight: 500;
+    }
+    .projects-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 0.85rem;
+    }
+    .project-card {
+      background: var(--color-surface-container);
+      border: 1px solid var(--color-outline-variant);
+      border-radius: var(--radius-big);
+      padding: 1.2rem 1.35rem 1.2rem;
+      text-decoration: none;
+      display: block;
+      transition: border-color 0.15s, background 0.15s;
+      cursor: pointer;
+    }
+    .project-card:hover {
+      border-color: var(--color-primary);
+      background: var(--color-surface-container-high);
+    }
+    .project-card-name {
+      font-size: 0.97rem;
+      color: var(--color-on-surface);
+      margin-bottom: 0.45rem;
+      line-height: 1.35;
+    }
+    .project-card-meta {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--color-on-surface-variant);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .home-empty {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 5rem 1rem;
+      gap: 1rem;
+      text-align: center;
+      color: var(--color-on-surface-variant);
+    }
+    .home-empty-title {
+      font-size: 1.1rem;
+      color: var(--color-on-surface);
+    }
+    /* Modal form fields */
+    .fm-label {
+      display: block;
+      font-size: 0.78rem;
+      color: var(--color-on-surface-variant);
+      margin-bottom: 0.3rem;
+      margin-top: 0.85rem;
+    }
+    .fm-label:first-child { margin-top: 0; }
+    .fm-input {
+      display: block;
+      width: 100%;
+      box-sizing: border-box;
+      background: var(--color-surface-container-high);
+      border: 1.5px solid var(--color-outline-variant);
+      border-radius: var(--radius-normal);
+      padding: 0.6rem 0.9rem;
+      color: var(--color-on-surface);
+      font-size: 0.85rem;
+      font-family: var(--font-sans);
+      outline: none;
+      transition: border-color 0.18s;
+    }
+    .fm-input:focus { border-color: var(--color-primary); }
+    .fm-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.6rem;
+      margin-top: 1.1rem;
+      flex-wrap: wrap;
+    }
+    .fm-error {
+      font-size: 0.78rem;
+      color: var(--color-bad);
+      margin-top: 0.6rem;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="home-wrap">
+    <div class="home-topbar">
+      <div class="home-brand">Check Mate</div>
+      <button class="button primary" id="newProjectBtn">New project</button>
+    </div>
+
+    {% if not projects %}
+    <div class="home-empty">
+      <div class="home-empty-title">No projects yet</div>
+      <div>Create your first project to start grading.</div>
+      <button class="button primary" id="newProjectBtnEmpty" style="margin-top:0.5rem;">Create first project</button>
+    </div>
+    {% else %}
+    <div class="projects-grid">
+      {% for p in projects %}
+      <a class="project-card" href="{{ url_for('projects.project_workspace', project_id=p.id) }}">
+        <div class="project-card-name">{{ p.name }}</div>
+        <div class="project-card-meta">{{ p.assignment_name }}</div>
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- New project modal -->
+  <div class="modal-overlay" id="newProjectModal">
+    <div class="modal-dialog" style="max-width:480px;" role="dialog" aria-modal="true">
+      <div style="font-size:1.1rem;color:var(--color-on-surface);margin-bottom:1rem;">New project</div>
+      <label class="fm-label" for="newProjectName">Project name</label>
+      <input class="fm-input" type="text" id="newProjectName" maxlength="200" placeholder="e.g. Lab 3 — Section B" autocomplete="off" />
+
+      <label class="fm-label" for="newAssignmentFile">Assignment description (.md or .txt)</label>
+      <input class="fm-input" type="file" id="newAssignmentFile" accept=".md,.txt" />
+
+      <label class="fm-label" for="newModelFile">Model solution (.py)</label>
+      <input class="fm-input" type="file" id="newModelFile" accept=".py" />
+
+      <div class="fm-error" id="newProjectError"></div>
+      <div class="fm-actions">
+        <button class="button outline" id="cancelNewProject">Cancel</button>
+        <button class="button primary" id="createProjectBtn">Create project</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const modal   = document.getElementById('newProjectModal');
+    const errEl   = document.getElementById('newProjectError');
+    const createBtn = document.getElementById('createProjectBtn');
+
+    function openModal() {
+      errEl.style.display = 'none';
+      modal.classList.add('active');
+      document.getElementById('newProjectName').focus();
+    }
+    function closeModal() { modal.classList.remove('active'); }
+
+    document.getElementById('newProjectBtn').addEventListener('click', openModal);
+    const emptyBtn = document.getElementById('newProjectBtnEmpty');
+    if (emptyBtn) emptyBtn.addEventListener('click', openModal);
+    document.getElementById('cancelNewProject').addEventListener('click', closeModal);
+    modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+
+    createBtn.addEventListener('click', async () => {
+      errEl.style.display = 'none';
+      const name       = document.getElementById('newProjectName').value.trim();
+      const assignment = document.getElementById('newAssignmentFile').files[0];
+      const model      = document.getElementById('newModelFile').files[0];
+      if (!name)       { errEl.textContent = 'Project name is required.';      errEl.style.display = 'block'; return; }
+      if (!assignment) { errEl.textContent = 'Assignment file is required.';   errEl.style.display = 'block'; return; }
+      if (!model)      { errEl.textContent = 'Model solution is required.';    errEl.style.display = 'block'; return; }
+
+      const fd = new FormData();
+      fd.append('project_name',    name);
+      fd.append('assignment',      assignment);
+      fd.append('model_solution',  model);
+      createBtn.disabled = true;
+      try {
+        const res  = await fetch('{{ url_for("projects.create_project") }}', { method: 'POST', body: fd });
+        const json = await res.json();
+        if (!res.ok || !json.ok) throw new Error((json.errors && json.errors[0]) || 'Failed creating project.');
+        window.location.href = json.redirect_url;
+      } catch (e) {
+        errEl.textContent = e.message || String(e);
+        errEl.style.display = 'block';
+        createBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

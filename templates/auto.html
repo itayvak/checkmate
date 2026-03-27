@@ -98,12 +98,12 @@
       </div>
       <textarea class="modal-textarea" id="checkerScriptModal"></textarea>
         <div class="mt-sm">
-          <div class="section-label mb-sm">Test output</div>
-          <pre id="modalTestOutput" class="code-output"></pre>
+          <div class="section-label mb-sm">Run output</div>
+          <pre id="modalRunOutput" class="code-output"></pre>
         </div>
       <div class="modal-actions">
-          <button type="button" class="button outline lg" id="modalTestBtn">
-            Test script on model solution
+          <button type="button" class="button outline lg" id="modalRunBtn">
+            Run script on model solution
           </button>
         <button type="button" class="button lg grow" id="modalContinueBtn">
           Save and continue
@@ -234,7 +234,7 @@
         showModal();
 
         loadingTitle.textContent = 'Done';
-        loadingDetail.textContent = 'You can edit the script, test it, then continue to student runs.';
+        loadingDetail.textContent = 'You can edit the script, run it, then continue to source runs.';
       } catch (err) {
         showClientError(err && err.message ? err.message : String(err));
       } finally {
@@ -330,16 +330,16 @@
       }
     }
 
-    async function onTest() {
+    async function onRunModel() {
       hideClientError();
       if (!autoSessionId) return showClientError('Generate the script first.');
 
-      const testBtn = document.getElementById('modalTestBtn');
+      const runBtn = document.getElementById('modalRunBtn');
       const overlay = document.getElementById('loadingOverlay');
       const loadingTitle = document.getElementById('loadingTitle');
       const loadingDetail = document.getElementById('loadingDetail');
 
-      testBtn.disabled = true;
+      runBtn.disabled = true;
       overlay.classList.add('active');
       loadingTitle.textContent = 'Testing…';
       loadingDetail.textContent = 'Running the checker with the model solution as the student file (sanity check).';
@@ -349,19 +349,19 @@
         const fd = new FormData();
         fd.append('checker_script', script);
 
-        const res = await fetch(`/auto/test/${autoSessionId}`, { method: 'POST', body: fd });
+        const res = await fetch(`/auto/project-run/${autoSessionId}`, { method: 'POST', body: fd });
         const json = await res.json().catch(() => ({}));
         if (!res.ok || !json.ok) {
-          const err = json.error || json.errors || `Test failed (${res.status}).`;
+          const err = json.error || json.errors || `Run failed (${res.status}).`;
           throw new Error(Array.isArray(err) ? err.join('\\n') : String(err));
         }
 
         const out = (json.stdout || '') + (json.stderr ? (json.stdout ? '\\n' : '') + 'STDERR:\\n' + json.stderr : '');
-        document.getElementById('modalTestOutput').textContent = out || '(no output)';
+        document.getElementById('modalRunOutput').textContent = out || '(no output)';
       } catch (err) {
         showClientError(err && err.message ? err.message : String(err));
       } finally {
-        testBtn.disabled = false;
+        runBtn.disabled = false;
         overlay.classList.remove('active');
       }
     }
@@ -372,7 +372,7 @@
     document.getElementById('manualModalCloseBtn').addEventListener('click', hideManualModal);
     document.getElementById('modalContinueBtn').addEventListener('click', onContinueToBatch);
     document.getElementById('modalCloseBtn').addEventListener('click', hideModal);
-    document.getElementById('modalTestBtn').addEventListener('click', onTest);
+    document.getElementById('modalRunBtn').addEventListener('click', onRunModel);
   </script>
 </body>
 </html>

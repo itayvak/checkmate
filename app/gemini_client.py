@@ -22,7 +22,7 @@ REVIEW_SCHEMA = {
             "enum": ["pass", "fail"],
             "description": (
                 'Binary grade as ASCII only: "pass" if all explicit assignment requirements are met, '
-                '"fail" otherwise (maps to Hebrew עבר / נכשל in the app).'
+                '"fail" otherwise.'
             ),
         },
         "summary": {
@@ -48,11 +48,13 @@ REVIEW_SCHEMA = {
 def normalize_checker_script_response(raw: str) -> str:
     """
     Gemini returns plain Python for auto-checkers; strip optional markdown fences or leading prose.
+    Handles truncated responses where the closing fence is missing.
     """
     text = (raw or "").strip()
     if not text:
         return ""
 
+    # Fully-fenced block (opening + closing ```)
     m = re.match(r"^```(?:python|py)?\s*\r?\n(.*)```\s*$", text, re.DOTALL | re.IGNORECASE)
     if m:
         return m.group(1).strip()
@@ -69,6 +71,11 @@ def normalize_checker_script_response(raw: str) -> str:
             for p in ("import ", "from ", "#", '"""', "'''")
         ) or "def " in inner[:800]:
             return inner
+
+    # Truncated fence — opening ``` present but no closing ``` (response was cut off)
+    m = re.match(r"^```(?:python|py)?\s*\r?\n(.*)", text, re.DOTALL | re.IGNORECASE)
+    if m:
+        return m.group(1).strip()
 
     lines = text.splitlines()
     for i, line in enumerate(lines):
@@ -90,17 +97,24 @@ def generate_auto_checker_prompt(
     extra_instructions: str,
 ) -> str:
     extra = extra_instructions.strip()
-    extra_block = f"\n\nADDITIONAL USER INSTRUCTIONS:\n{extra}\n" if extra else ""
+    extra_block = f"""
+IMPORTANT — TEACHER'S CUSTOM INSTRUCTIONS:
+These instructions override your default test-design choices.
+You MUST follow them exactly when deciding which tests to write.
+
+{extra}
+
+""" if extra else ""
     return f"""You are an expert Python programming instructor and automation engineer.
 
-I will give you THREE things:
+I will give you the following:
 
 1. The OFFICIAL SOLUTION CODE for a programming assignment.
 2. A MARKDOWN file that describes the assignment instructions given to students.
-3. Additional user instructions (if provided).
+3. IMPORTANT custom instructions from the teacher (if provided) that you must follow exactly.
 
 Your task is to create a Python script that checks whether ONE student's submission works correctly.
-
+{extra_block}
 GOAL
 Create a script named `check_student.py` that tests a single student's Python file against the assignment requirements.
 
@@ -132,24 +146,37 @@ EXECUTION REQUIREMENTS
     * crashes
     * programs that never terminate (use a timeout).
 
+CHECKMATE REPORTER — include this block VERBATIM at the very top of your checker script (after any module docstring):
+
+```python
+# ── CheckMate reporter (do not modify) ──────────────────────────────────────
+import json as _json, sys as _sys
+
+class _Reporter:
+    def __init__(self): self._checks = []
+    def check(self, name: str, passed: bool, message: str = ""):
+        self._checks.append({{"name": name, "passed": passed, "message": message}})
+    def finish(self):
+        _p = sum(1 for t in self._checks if t["passed"])
+        print(_json.dumps({{
+            "checkmate_result": True,
+            "checks": self._checks,
+            "passed": _p,
+            "total": len(self._checks),
+        }}, ensure_ascii=False))
+        _sys.exit(0 if _p == len(self._checks) else 1)
+
+reporter = _Reporter()
+# ── End CheckMate reporter ───────────────────────────────────────────────────
+```
+
 OUTPUT FORMAT
-The checker must print:
-* Each test name
-* PASS or FAIL
-* Explanation when a test fails
-* Final summary result
+* For each check case call: `reporter.check("descriptive check name", passed=True/False, message="reason on failure")`
+* At the very end of the script call: `reporter.finish()` — this prints the structured JSON result and exits.
+* NEVER call `print()` to stdout for anything else — all debug output must go to stderr (`print(..., file=sys.stderr)`).
+* NEVER call `sys.exit()` directly — always use `reporter.finish()`.
+* The `message` field should be empty string `""` on pass, and a short human-readable explanation on fail.
 
-Example output:
-```
-Running tests for student_solution.py
-
-Test 1 — Create registry value: PASS
-Test 2 — Modify value: PASS
-Test 3 — Delete value: FAIL
-Reason: value still exists after delete operation
-
-FINAL RESULT: 2/3 tests passed
-```
 CODE QUALITY
 
 * Produce clean, readable, well-commented Python code.
@@ -176,12 +203,6 @@ near the top or above the test list.
 {model_solution_py}
 ```
 --- END OFFICIAL SOLUTION CODE -----------------------
-
---- START ADDITIONAL USER INSTRUCTIONS -----------------------
-```markdown
-{extra_instructions}
-```
---- END ADDITIONAL USER INSTRUCTIONS -----------------------
 """
 
 
@@ -217,6 +238,11 @@ def _extract_gemini_response_text(data: dict) -> str:
     finish = cand0.get("finishReason")
     if finish in ("SAFETY", "RECITATION", "BLOCKLIST", "PROHIBITED_CONTENT"):
         raise ValueError(f"Gemini stopped for policy reasons ({finish}).")
+    if finish == "MAX_TOKENS":
+        raise ValueError(
+            "Gemini hit the output token limit and returned a truncated response. "
+            "Try a model with a larger output window (e.g. gemini-2.5-pro) or simplify the assignment."
+        )
 
     content = cand0.get("content")
     if not isinstance(content, dict):
@@ -308,6 +334,7 @@ def review_student_code(
     *,
     student_filename: str | None = None,
     auto_check_output: str | None = None,
+    extra_instructions: str | None = None,
 ):
     lines = student_code.split("\n")
 
@@ -333,11 +360,23 @@ If anything in the checker output conflicts with the written assignment, follow 
 
 """
 
+    extra = (extra_instructions or "").strip()
+    extra_block = f"""
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+IMPORTANT — TEACHER'S CUSTOM INSTRUCTIONS (highest priority):
+These instructions override your default evaluation and annotation choices.
+You MUST follow them exactly when grading and writing comments.
+
+{extra}
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+""" if extra else ""
+
     prompt = f"""You are a **strict Python assignment evaluator** reviewing a single student submission.
 
 Your role is **not** to teach, refactor, optimize, or suggest improvements.
 Your role is ONLY to determine whether the student correctly implemented the assignment requirements.
-
+{extra_block}
 I will provide you with:
     * The assignment description, a text given to the students describing what the student should implement in their code.
     * The model solution, the correct solution written by the class proffesor.
@@ -485,13 +524,13 @@ Do NOT include additional commentary.
     if isinstance(raw_grade, str):
         g = raw_grade.strip().lower()
         if g in ("pass", "עבר"):
-            grade = "עבר"
+            grade = "pass"
         elif g in ("fail", "נכשל", "חלקי"):
-            grade = "נכשל"
+            grade = "fail"
         else:
-            grade = "נכשל"
+            grade = "fail"
     else:
-        grade = "נכשל"
+        grade = "fail"
     summary = obj.get("summary", "")
 
     raw_anns = obj.get("annotations", [])

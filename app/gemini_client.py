@@ -93,10 +93,11 @@ def generate_auto_checker_prompt(
     extra_block = f"\n\nADDITIONAL USER INSTRUCTIONS:\n{extra}\n" if extra else ""
     return f"""You are an expert Python programming instructor and automation engineer.
 
-I will give you TWO things:
+I will give you THREE things:
 
 1. The OFFICIAL SOLUTION CODE for a programming assignment.
 2. A MARKDOWN file that describes the assignment instructions given to students.
+3. Additional user instructions (if provided).
 
 Your task is to create a Python script that checks whether ONE student's submission works correctly.
 
@@ -175,6 +176,12 @@ near the top or above the test list.
 {model_solution_py}
 ```
 --- END OFFICIAL SOLUTION CODE -----------------------
+
+--- START ADDITIONAL USER INSTRUCTIONS -----------------------
+```markdown
+{extra_instructions}
+```
+--- END ADDITIONAL USER INSTRUCTIONS -----------------------
 """
 
 

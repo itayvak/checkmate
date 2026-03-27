@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% if session_title %}{{ session_title }} — {% endif %}Batch run — Check Mate</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/ui.css') }}" />
+  <style>
+    body {
+      font-family: var(--font-sans);
+      background: var(--color-background);
+      color: var(--color-on-surface);
+      min-height: 100vh;
+      padding: 1.5rem 1rem 2.5rem;
+    }
+    .top-bar {
+      max-width: 960px;
+      margin: 0 auto 1.25rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.65rem;
+      align-items: center;
+    }
+    h1 { font-size: clamp(1.1rem, 2.5vw, 1.35rem); color: var(--color-on-surface); font-weight: 700; line-height: 1.3; }
+    .batch-title { font-size: 1.2rem; }
+    .batch-title.muted { color: var(--color-on-surface-variant); font-weight: 600; }
+    .meta { font-size: 0.78rem; color: var(--color-on-surface-variant); font-family: var(--font-mono); margin-top: 0.35rem; word-break: break-all; }
+    .card {
+      max-width: 960px;
+      margin: 0 auto 1rem;
+      border-radius: 16px;
+      padding: 1.1rem 1.2rem;
+    }
+    .section-label {
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      margin-bottom: 0.5rem;
+    }
+    pre.code {
+      white-space: pre-wrap;
+      word-break: break-word;
+      background: var(--color-surface-container-high);
+      border: 1px solid var(--color-outline-variant);
+      border-radius: 12px;
+      padding: 0.85rem;
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      line-height: 1.5;
+      max-height: 360px;
+      overflow: auto;
+    }
+    .result-block {
+      margin-top: 1rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--color-outline-variant);
+    }
+    .result-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.5rem 1rem;
+      margin-bottom: 0.5rem;
+    }
+    .fname { font-family: var(--font-mono); font-weight: 700; color: var(--color-on-surface); font-size: 0.88rem; }
+    .badge {
+      font-size: 0.68rem;
+      font-weight: 700;
+      padding: 0.2rem 0.55rem;
+      border-radius: var(--radius-pill);
+    }
+    .badge-ok { background: rgba(143,212,196,0.2); color: var(--color-good); }
+    .badge-fail { background: rgba(240,184,184,0.15); color: var(--color-bad); }
+    .badge-warn { background: rgba(168,196,249,0.15); color: var(--color-on-primary-container); }
+  </style>
+</head>
+<body>
+
+<div class="top-bar">
+  <a href="{{ url_for('auto.batch_history_page') }}" class="btn-chip">← All batches</a>
+  <a href="{{ url_for('main.index') }}" class="btn-chip">Menu</a>
+</div>
+
+<div class="card" style="padding-bottom:0.5rem;">
+  <h1 class="batch-title{% if not session_title %} muted{% endif %}">{{ session_title or "Untitled batch run" }}</h1>
+  <p class="meta">id {{ batch_id }}{% if assignment_name %} · {{ assignment_name }}{% endif %}</p>
+  {% if source_auto_session_id %}
+  <p class="meta" style="margin-top:0.25rem;">Checker session: {{ source_auto_session_id }}</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <div class="section-label">Checker script</div>
+  <pre class="code">{{ checker_script }}</pre>
+</div>
+
+<div class="card">
+  <div class="section-label">Results per student file</div>
+  {% for r in results %}
+  <div class="result-block"{% if loop.first %} style="margin-top:0;border-top:none;padding-top:0;"{% endif %}>
+    <div class="result-head">
+      <span class="fname">{{ r.filename or '(unknown)' }}</span>
+      {% if r.error %}
+      <span class="badge badge-warn">error</span>
+      {% elif r.exit_code == 0 %}
+      <span class="badge badge-ok">exit 0</span>
+      {% else %}
+      <span class="badge badge-fail">exit {{ r.exit_code if r.exit_code is not none else '—' }}</span>
+      {% endif %}
+    </div>
+    <pre class="code" style="max-height:280px;">{{ r.output or '(no output)' }}</pre>
+  </div>
+  {% else %}
+  <p style="color:var(--color-on-surface-variant);font-size:0.88rem;">No result rows stored.</p>
+  {% endfor %}
+</div>
+
+</body>
+</html>

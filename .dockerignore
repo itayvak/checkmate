@@ -1,0 +1,11 @@
+.git
+.cursor
+.cursorrules
+__pycache__
+*.py[cod]
+*.db
+.env
+.env.*
+*.md
+Dockerfile*
+.dockerignore

@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Results — {{ assignment_name }} — Check Mate</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/ui.css') }}" />
+  <!-- highlight.js — atom-one-dark theme -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+  <style>
+    :root {
+      --ann-w:       300px;
+      --sidebar-w:   272px;
+      --ai-w:        360px;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--color-background);
+      color: var(--color-on-surface);
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Top bar ── */
+    .top-bar {
+      height: 52px;
+      background: var(--color-surface-container-lowest);
+      border-bottom: 1px solid var(--color-outline-variant);
+      display: flex; align-items: center;
+      padding: 0 1.2rem; gap: 0.9rem;
+      flex-shrink: 0;
+    }
+    .btn-chip { display: flex; }
+    .top-bar-actions { display: flex; align-items: center; gap: 0.5rem; }
+
+    /* ── Layout ── */
+    .layout { display: flex; flex: 1; overflow: hidden; }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: var(--sidebar-w); min-width: var(--sidebar-w);
+      background: var(--color-surface-container-lowest); border-right: 1px solid var(--color-outline-variant);
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+    .sidebar-header { padding: 0.9rem 0.9rem 0.7rem; border-bottom: 1px solid var(--color-outline-variant); }
+    .sidebar-title  { margin-bottom: 0.6rem; }
+    .sidebar-stats  { display: flex; gap: 0.4rem; }
+
+    .sidebar-search { padding: 0.55rem 0.75rem; border-bottom: 1px solid var(--color-outline-variant); position: relative; }
+    .sidebar-search input {
+      width: 100%; background: var(--color-surface-container); border: 1px solid var(--color-outline);
+      border-radius: 14px; padding: 0.38rem 0.6rem 0.38rem 1.75rem;
+      color: var(--color-on-surface); font-size: 0.78rem; outline: none;
+      font-family: var(--font-sans); transition: border-color 0.15s;
+    }
+    .sidebar-search input:focus { border-color: var(--color-primary); }
+    .sidebar-search .search-icon { position: absolute; left: 1.1rem; top: 50%; transform: translateY(-50%); color: var(--color-on-surface-variant); pointer-events: none; }
+
+    .student-list { flex: 1; overflow-y: auto; padding: 0.3rem 0; }
+    .student-list::-webkit-scrollbar { width: 3px; }
+    .student-list::-webkit-scrollbar-thumb { background: var(--color-outline); border-radius: 3px; }
+
+    .student-item {
+      display: flex; align-items: center; gap: 0.65rem;
+      padding: 0.6rem 0.9rem; cursor: pointer;
+      transition: background 0.1s; border-left: 2px solid transparent;
+    }
+    .student-item:hover  { background: rgba(255,255,255,0.02); }
+    .student-item.active { background: rgba(168,196,249,0.12); border-left-color: var(--color-primary); }
+
+
+    .student-info { flex: 1; min-width: 0; }
+
+
+    /* ── Main ── */
+    .main-content { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+    .ai-sidebar {
+      width: 0;
+      min-width: 0;
+      border-left: 0 solid var(--color-outline-variant);
+      background: var(--color-surface-container-lowest);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: width 0.2s ease, border-left-width 0.2s ease;
+    }
+    .ai-sidebar.open {
+      width: var(--ai-w);
+      min-width: var(--ai-w);
+      border-left-width: 1px;
+    }
+    .ai-head {
+      padding: 0.85rem 0.9rem;
+      border-bottom: 1px solid var(--color-outline-variant);
+    }
+    .ai-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0.75rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.55rem;
+    }
+    .ai-msg-user { align-self: flex-end; }
+    .ai-msg-ai { align-self: stretch; }
+    .ai-compose {
+      border-top: 1px solid var(--color-outline-variant);
+      padding: 0.7rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .ai-compose textarea {
+      width: 100%;
+      min-height: 84px;
+      resize: vertical;
+      border-radius: 12px;
+      border: 1px solid var(--color-outline);
+      background: var(--color-surface-container);
+      color: var(--color-on-surface);
+      font-family: var(--font-sans);
+      font-size: 0.78rem;
+      line-height: 1.45;
+      padding: 0.55rem 0.6rem;
+      outline: none;
+    }
+    .ai-compose textarea:focus { border-color: var(--color-primary); }
+    .ai-ask-btn {
+      align-self: flex-end;
+      border: 1px solid rgba(255,255,255,0.35);
+      background: linear-gradient(180deg, #c9dafc 0%, #a8c4f9 100%);
+      color: #2f3b52;
+      border-radius: var(--radius-pill);
+      padding: 0.42rem 0.85rem;
+      font-size: 0.78rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .ai-ask-btn[disabled] { opacity: 0.6; cursor: not-allowed; }
+
+    .student-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    .content-header {
+      padding: 1rem 1.4rem; border-bottom: 1px solid var(--color-outline-variant);
+      display: flex; align-items: flex-start; gap: 1rem;
+      flex-shrink: 0; background: var(--color-surface-container);
+    }
+    .content-header-info { flex: 1; }
+
+    .content-header-side {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 0.45rem;
+      flex-shrink: 0;
+    }
+
+    /* ════════════════════════════════════════
+       CODE VIEWER — margin annotation layout
+       ════════════════════════════════════════ */
+    .code-scroll {
+      flex: 1; overflow-y: auto; overflow-x: auto; position: relative;
+      font-family: var(--font-mono); font-size: 0.81rem; line-height: 1.65;
+    }
+    .code-scroll::-webkit-scrollbar       { width: 5px; height: 5px; }
+    .code-scroll::-webkit-scrollbar-thumb { background: var(--color-outline); border-radius: 3px; }
+
+    .code-and-margin {
+      position: relative;
+      padding-right: calc(var(--ann-w) + 24px);
+      min-width: 0;
+    }
+
+    /* ── Code lines ── */
+    .code-line-row {
+      display: flex;
+      min-height: 1.65em;
+    }
+    .code-line-row.ann-impl { background: rgba(240,184,184,0.06);  border-left: 2px solid rgba(240,184,184,0.45); }
+    .code-line-row.clickable { cursor: pointer; }
+    .code-line-row.active-line { background: rgba(168,196,249,0.16); border-left-color: var(--color-on-primary-container); }
+
+    .line-num {
+      user-select: none;
+      width: 52px; min-width: 52px;
+      text-align: right; padding: 0 12px 0 0;
+      color: var(--color-on-surface-variant); font-size: 0.73rem;
+      border-right: 1px solid var(--color-outline-variant);
+      background: rgba(0,0,0,0.18);
+      flex-shrink: 0;
+      /* Vertically align with code text */
+      display: flex; align-items: center; justify-content: flex-end;
+    }
+
+    .line-code {
+      flex: 1;
+      padding: 0 1.4rem;
+      white-space: pre;
+      /* Let hljs spans show their colours; don't set color here */
+    }
+
+    /* Strip highlight.js background so our own row backgrounds show through */
+    .line-code .hljs,
+    .line-code span { background: transparent !important; }
+
+    /* ── Annotation layer ── */
+    .ann-layer {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      pointer-events: none;
+    }
+
+    .ann-card {
+      position: absolute; right: 8px;
+      width: var(--ann-w);
+    }
+    .ann-card.active-card {
+      border-color: var(--color-on-primary-container);
+      background: rgba(168,196,249,0.14);
+    }
+
+    /* Connector line */
+    .ann-card::before {
+      content: ''; position: absolute;
+      left: -17px; top: 50%;
+      width: 16px; height: 1px; opacity: 0.5;
+    }
+    .ann-card::before { }
+
+    .ann-card-header { display: flex; align-items: center; gap: 0.4rem; }
+
+    /* ── Empty state ── */
+    .empty-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.75rem; }
+    .empty-icon  { width: 40px; height: 40px; }
+    .empty-text  { font-size: 0.88rem; }
+
+    /* Page-entry animations intentionally removed for simpler UI. */
+  </style>
+</head>
+<body>
+
+<div class="top-bar">
+  <a href="/" class="btn-chip">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    Menu
+  </a>
+  <a href="{{ url_for('sessions.sessions_history') }}" class="btn-chip">All sessions</a>
+  <div class="top-bar-title">{{ assignment_name }}</div>
+  <div class="top-bar-meta">{{ student_count }} students</div>
+  <div class="top-bar-actions">
+    <button type="button" class="btn-chip" id="toggleAiBtn">AI assistant</button>
+  </div>
+</div>
+
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-title">Students</div>
+      <div class="sidebar-stats" id="stats"></div>
+    </div>
+    <div class="sidebar-search">
+      <svg class="search-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <input type="text" id="studentSearch" placeholder="Search students..." oninput="filterStudents(this.value)" />
+    </div>
+    <div class="student-list" id="studentList"></div>
+  </aside>
+
+  <main class="main-content" id="mainContent">
+    <div class="empty-state">
+      <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+      </svg>
+      <div class="empty-text">Select a student to view their annotated code</div>
+    </div>
+  </main>
+  <aside class="ai-sidebar" id="aiSidebar">
+    <div class="ai-head">
+      <div class="ai-title">Ask AI about this student</div>
+      <div class="ai-sub">Uses assignment, model solution, student code, and generated comments.</div>
+    </div>
+    <div class="ai-messages" id="aiMessages">
+      <div class="ai-msg ai-msg-ai">Select a student and ask a question.</div>
+    </div>
+    <div class="ai-compose">
+      <textarea id="aiQuestionInput" placeholder="Example: Why did this student fail, and what is the first fix they should make?"></textarea>
+      <button type="button" class="ai-ask-btn" id="aiAskBtn">Ask</button>
+    </div>
+  </aside>
+</div>
+
+<script>
+const RESULTS = {{ results_json | safe }};
+const SESSION_ID = {{ session_id | tojson }};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Syntax highlighting helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Highlight a full Python source string and return an array of per-line HTML
+ * strings, each with hljs spans properly closed and reopened at line boundaries.
+ *
+ * highlight.js produces a flat stream of <span class="hljs-*">...</span> tokens.
+ * A span can wrap text that spans multiple lines, so we must track the open-span
+ * stack and close/reopen it whenever we encounter a newline inside a token.
+ */
+function highlightLines(code) {
+  // Run highlight.js on the whole file
+  const highlighted = hljs.highlight(code, { language: 'python', ignoreIllegals: true }).value;
+
+  const lines = [];
+  let currentLine = '';
+  // Stack of opening <span ...> tags currently active
+  const spanStack = [];
+  let i = 0;
+
+  while (i < highlighted.length) {
+    if (highlighted[i] === '\n') {
+      // End of line: close all open spans, push the line, then reopen them
+      const closers = spanStack.map(() => '</span>').join('');
+      lines.push(currentLine + closers);
+      const openers = spanStack.join('');
+      currentLine = openers;
+      i++;
+    } else if (highlighted[i] === '<') {
+      // HTML tag — read until '>'
+      const end = highlighted.indexOf('>', i);
+      const tag = highlighted.slice(i, end + 1);
+      currentLine += tag;
+      if (tag.startsWith('<span')) {
+        spanStack.push(tag);
+      } else if (tag === '</span>') {
+        spanStack.pop();
+      }
+      i = end + 1;
+    } else {
+      currentLine += highlighted[i];
+      i++;
+    }
+  }
+
+  // Push the last line (no trailing newline in highlight.js output)
+  if (currentLine) {
+    const closers = spanStack.map(() => '</span>').join('');
+    lines.push(currentLine + closers);
+  }
+
+  return lines;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Utilities
+// ─────────────────────────────────────────────────────────────────────────────
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function gc(grade) {
+  if (grade === 'עבר') return 'good';
+  return 'bad';
+}
+function gradeLabel(grade) {
+  if (grade === 'עבר') return 'Pass';
+  return 'Fail';
+}
+
+const students = Object.values(RESULTS);
+let activeId = null;
+let studentListEnterOnce = true;
+let firstStudentPanel = true;
+let aiOpen = false;
+const aiThreadsByStudent = {};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sidebar
+// ─────────────────────────────────────────────────────────────────────────────
+
+function buildStats() {
+  const passed = students.filter(s => s.grade === 'עבר').length;
+  const failed = students.length - passed;
+  document.getElementById('stats').innerHTML = `
+    <div class="stat-chip s-total"><span class="val">${students.length}</span><span class="lbl">Total</span></div>
+    <div class="stat-chip s-pass"><span class="val">${passed}</span><span class="lbl">Pass</span></div>
+    <div class="stat-chip s-fail"><span class="val">${failed}</span><span class="lbl">Fail</span></div>
+  `;
+}
+
+function buildStudentList(filter = '') {
+  const lower    = filter.toLowerCase();
+  const filtered = students.filter(s =>
+    !lower || s.student_id.toLowerCase().includes(lower) || s.filename.toLowerCase().includes(lower)
+  );
+  const useRowEnter = studentListEnterOnce && !filter;
+  document.getElementById('studentList').innerHTML = filtered.map((s, i) => {
+    const cls = gc(s.grade);
+    const enterCls = useRowEnter ? ' student-item-enter' : '';
+    const enterStyle = useRowEnter ? ` style="--row: ${i}"` : '';
+    return `<div class="student-item${enterCls}${s.student_id === activeId ? ' active' : ''}"${enterStyle}
+                 onclick="selectStudent('${esc(s.student_id)}')">
+      <div class="student-avatar ${cls}">${esc(s.student_id.slice(0,3).toUpperCase())}</div>
+      <div class="student-info">
+        <div class="student-name">${esc(s.student_id)}</div>
+        <div class="student-sub">${esc(s.test_name)}</div>
+      </div>
+      <span class="grade-pill ${cls}">${gradeLabel(s.grade)}</span>
+    </div>`;
+  }).join('');
+  if (useRowEnter) studentListEnterOnce = false;
+}
+
+function filterStudents(v) { buildStudentList(v); }
+
+function getThread(studentId) {
+  if (!studentId) return [];
+  if (!aiThreadsByStudent[studentId]) aiThreadsByStudent[studentId] = [];
+  return aiThreadsByStudent[studentId];
+}
+
+function renderAiThread(studentId) {
+  const box = document.getElementById('aiMessages');
+  const thread = getThread(studentId);
+  box.innerHTML = '';
+  if (thread.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'ai-msg ai-msg-ai';
+    empty.textContent = studentId
+      ? 'Ask a question about this student.'
+      : 'Select a student and ask a question.';
+    box.appendChild(empty);
+    return;
+  }
+  thread.forEach((m) => {
+    const div = document.createElement('div');
+    div.className = `ai-msg ${m.role === 'user' ? 'ai-msg-user' : 'ai-msg-ai'}`;
+    div.textContent = m.content;
+    box.appendChild(div);
+  });
+  box.scrollTop = box.scrollHeight;
+}
+
+function appendAiMessage(text, role, studentId = activeId) {
+  if (!studentId) return;
+  const thread = getThread(studentId);
+  thread.push({ role, content: String(text || '') });
+  renderAiThread(studentId);
+}
+
+function toggleAiSidebar() {
+  aiOpen = !aiOpen;
+  const sidebar = document.getElementById('aiSidebar');
+  sidebar.classList.toggle('open', aiOpen);
+  if (aiOpen) renderAiThread(activeId);
+}
+
+async function askAiAboutStudent() {
+  const qInput = document.getElementById('aiQuestionInput');
+  const askBtn = document.getElementById('aiAskBtn');
+  const studentId = activeId;
+  const q = (qInput.value || '').trim();
+  if (!studentId) {
+    appendAiMessage('Select a student first.', 'assistant', studentId);
+    return;
+  }
+  if (!q) return;
+
+  appendAiMessage(q, 'user', studentId);
+  qInput.value = '';
+  askBtn.disabled = true;
+  appendAiMessage('Thinking...', 'assistant', studentId);
+
+  try {
+    const thread = getThread(studentId)
+      .filter((m) => m.content !== 'Thinking...')
+      .slice(-10);
+    const res = await fetch(`/results/${encodeURIComponent(SESSION_ID)}/ask`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ student_id: studentId, question: q, history: thread }),
+    });
+    const json = await res.json().catch(() => ({}));
+    const threadNow = getThread(studentId);
+    if (threadNow.length > 0 && threadNow[threadNow.length - 1].content === 'Thinking...') {
+      threadNow.pop();
+      if (activeId === studentId) renderAiThread(studentId);
+    }
+    if (!res.ok || !json.ok) {
+      const err = json.error || json.errors || `Request failed (${res.status}).`;
+      appendAiMessage(Array.isArray(err) ? err.join('\n') : String(err), 'assistant', studentId);
+      return;
+    }
+    appendAiMessage((json.answer || '').trim() || '(No answer returned.)', 'assistant', studentId);
+  } catch (e) {
+    const threadNow = getThread(studentId);
+    if (threadNow.length > 0 && threadNow[threadNow.length - 1].content === 'Thinking...') {
+      threadNow.pop();
+      if (activeId === studentId) renderAiThread(studentId);
+    }
+    appendAiMessage(e && e.message ? e.message : String(e), 'assistant', studentId);
+  } finally {
+    askBtn.disabled = false;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Main panel
+// ─────────────────────────────────────────────────────────────────────────────
+
+function selectStudent(studentId) {
+  activeId = studentId;
+  buildStudentList(document.getElementById('studentSearch').value);
+  renderAiThread(studentId);
+
+  const s = RESULTS[studentId];
+  if (!s) return;
+
+  const cls      = gc(s.grade);
+  const annCount = (s.annotations || []).length;
+
+  // Annotation lookup: line number -> [annotation, ...]
+  const annMap = {};
+  (s.annotations || []).forEach(a => {
+    if (!annMap[a.line]) annMap[a.line] = [];
+    annMap[a.line].push(a);
+  });
+
+  // Syntax-highlight the full source, then split into per-line HTML segments
+  const rawCode     = s.code || (s.code_lines || []).join('\n');
+  const hlLines     = highlightLines(rawCode);
+  const sourceLines = rawCode.split('\n');
+
+  // Build code rows — each row gets a stable id for card positioning
+  const codeLinesHtml = sourceLines.map((_, idx) => {
+    const ln   = idx + 1;
+    const anns = annMap[ln] || [];
+    let rowCls = 'code-line-row';
+    if (anns.length > 0) rowCls += ' ann-impl';
+    if (anns.length > 0) rowCls += ' clickable';
+
+    // hlLines[idx] is already HTML with highlight.js spans — use it directly
+    const lineHtml = hlLines[idx] !== undefined ? hlLines[idx] : '';
+
+    return `<div class="${rowCls}" id="cl-${ln}" data-line="${ln}">
+      <span class="line-num">${ln}</span>
+      <span class="line-code">${lineHtml}</span>
+    </div>`;
+  }).join('');
+
+  // Build annotation cards
+  let cardsHtml = '';
+  Object.entries(annMap).forEach(([lineNum, anns]) => {
+    anns.forEach((a, i) => {
+      const typeCls   = 'impl';
+      const typeLabel = 'Issue';
+      cardsHtml += `
+        <div class="ann-card ${typeCls}" data-line="${lineNum}" data-idx="${i}">
+          <div class="ann-card-header">
+            <span class="ann-type-badge">${typeLabel}</span>
+            <span class="ann-line-ref">Line ${lineNum}</span>
+          </div>
+          <div class="ann-comment">${esc(a.comment)}</div>
+        </div>`;
+    });
+  });
+
+  const summaryHtml = s.summary ? `
+    <div class="summary-block">
+      <div class="summary-label">Summary</div>
+      <div class="summary-body">${esc(s.summary)}</div>
+    </div>` : '';
+
+  const acRaw = (s.auto_check_output != null && s.auto_check_output !== undefined) ? String(s.auto_check_output).trim() : '';
+  const autoCheckHtml = acRaw ? `
+    <div class="auto-check-block">
+      <div class="auto-check-label">Automated checker output</div>
+      <pre class="auto-check-pre">${esc(acRaw)}</pre>
+    </div>` : '';
+
+  const panelEnter = firstStudentPanel ? ' student-panel--enter' : '';
+  if (firstStudentPanel) firstStudentPanel = false;
+
+  document.getElementById('mainContent').innerHTML = `
+    <div class="student-panel${panelEnter}">
+    <div class="content-header">
+      <div class="content-header-info">
+        <div class="student-title">Student: ${esc(s.student_id)}</div>
+        <div class="student-filename">${esc(s.filename)}</div>
+        ${summaryHtml}
+        ${autoCheckHtml}
+      </div>
+      <div class="content-header-side">
+        <div class="chip ${cls}">${gradeLabel(s.grade)}</div>
+        ${annCount > 0 ? `<div class="chip">${annCount} annotation${annCount !== 1 ? 's' : ''}</div>` : ''}
+      </div>
+    </div>
+
+    <div class="code-scroll" id="codeScroll">
+      <div class="code-and-margin" id="codeAndMargin">
+        <div id="codeLines">${codeLinesHtml}</div>
+        <div class="ann-layer" id="annLayer">${cardsHtml}</div>
+      </div>
+    </div>
+    </div>
+  `;
+
+  requestAnimationFrame(() => {
+    positionCards();
+    bindAnnotationInteractions();
+  });
+}
+
+function clearAnnotationSelection() {
+  document.querySelectorAll('.code-line-row.active-line').forEach(el => el.classList.remove('active-line'));
+  document.querySelectorAll('.ann-card.active-card').forEach(el => el.classList.remove('active-card'));
+}
+
+function focusAnnotationLine(lineNum, scrollToCard = true) {
+  clearAnnotationSelection();
+  const lineEl = document.getElementById(`cl-${lineNum}`);
+  if (lineEl) lineEl.classList.add('active-line');
+
+  const cards = document.querySelectorAll(`.ann-card[data-line="${lineNum}"]`);
+  cards.forEach(card => card.classList.add('active-card'));
+
+  if (scrollToCard && cards.length > 0) {
+    cards[0].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+}
+
+function bindAnnotationInteractions() {
+  // Clicking a commented line highlights matching comment card(s).
+  document.querySelectorAll('.code-line-row.clickable').forEach(lineEl => {
+    lineEl.addEventListener('click', () => {
+      const lineNum = parseInt(lineEl.dataset.line, 10);
+      if (Number.isInteger(lineNum)) focusAnnotationLine(lineNum, true);
+    });
+  });
+
+  // Clicking a card highlights the source line too.
+  document.querySelectorAll('.ann-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const lineNum = parseInt(card.dataset.line, 10);
+      if (!Number.isInteger(lineNum)) return;
+      focusAnnotationLine(lineNum, false);
+      const lineEl = document.getElementById(`cl-${lineNum}`);
+      if (lineEl) lineEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    });
+  });
+}
+
+function positionCards() {
+  const annLayer = document.getElementById('annLayer');
+  if (!annLayer) return;
+
+  const GAP = 8; // px between cards
+
+  // Collect all cards sorted by the offsetTop of their anchor line,
+  // so we process them top-to-bottom regardless of line order in the DOM.
+  const allCards = [];
+  annLayer.querySelectorAll('.ann-card').forEach(card => {
+    const ln     = parseInt(card.dataset.line);
+    const lineEl = document.getElementById(`cl-${ln}`);
+    if (!lineEl) return;
+    allCards.push({ card, anchorTop: lineEl.offsetTop });
+  });
+
+  // Sort top-to-bottom by anchor line position
+  allCards.sort((a, b) => a.anchorTop - b.anchorTop);
+
+  // Place each card: start at its anchor, but never overlap the previous card
+  let nextAvailableTop = 0;
+  allCards.forEach(({ card, anchorTop }) => {
+    const top = Math.max(anchorTop, nextAvailableTop);
+    card.style.top = top + 'px';
+    nextAvailableTop = top + card.offsetHeight + GAP;
+  });
+
+  // Stretch the layer so cards near the bottom aren't clipped
+  const codeLines = document.getElementById('codeLines');
+  const minHeight = codeLines ? codeLines.offsetHeight : 0;
+  annLayer.style.height = Math.max(minHeight, nextAvailableTop) + 'px';
+}
+
+window.addEventListener('resize', () => {
+  if (document.getElementById('annLayer')) positionCards();
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Init
+// ─────────────────────────────────────────────────────────────────────────────
+buildStats();
+buildStudentList();
+document.getElementById('toggleAiBtn').addEventListener('click', toggleAiSidebar);
+document.getElementById('aiAskBtn').addEventListener('click', askAiAboutStudent);
+document.getElementById('aiQuestionInput').addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') askAiAboutStudent();
+});
+if (students.length === 0) {
+  document.getElementById('mainContent').classList.add('main-shell-enter');
+} else {
+  selectStudent(students[0].student_id);
+}
+</script>
+</body>
+</html>

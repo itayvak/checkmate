@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Check Mate</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/ui.css') }}" />
+  <style>
+    body {
+      font-family: var(--font-sans);
+      background: var(--color-background);
+      color: var(--color-on-surface);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem 1rem;
+      gap: 1rem;
+    }
+
+    h1 {
+      font-size: clamp(1.6rem, 3vw, 2.1rem);
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+      color: var(--color-on-surface);
+      margin-bottom: 0.25rem;
+    }
+    .subtitle {
+      color: var(--color-on-surface-variant);
+      font-size: 0.9rem;
+      font-weight: 300;
+      letter-spacing: 0.01em;
+      margin-bottom: 1.25rem;
+    }
+
+    .top-row {
+      width: 100%;
+      max-width: 960px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .card {
+      padding: 1.5rem;
+      width: 100%;
+      max-width: 960px;
+    }
+
+    .error-box {
+      margin-bottom: 1rem;
+      font-size: 0.85rem;
+    }
+    .error-item { padding: 0.1rem 0; }
+
+    .section { margin-bottom: 1.2rem; }
+    .section-label {
+      margin-bottom: 0.45rem;
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+    }
+    .section-label::before {
+      content: '';
+      display: block;
+      width: 4px; height: 4px;
+      border-radius: 50%;
+      background: var(--color-primary);
+      flex-shrink: 0;
+    }
+
+    .input-group { position: relative; }
+    .input-group input {
+      padding: 0.75rem 2.6rem 0.75rem 1rem;
+      font-family: var(--font-mono);
+      font-size: 0.83rem;
+    }
+    .input-group input::placeholder { color: var(--color-on-surface-variant); font-family: var(--font-sans); font-size: 0.83rem; }
+    .input-group select {
+      padding: 0.75rem 1rem;
+      font-family: var(--font-mono);
+      font-size: 0.83rem;
+      appearance: none;
+    }
+    .field-hint {
+      margin-top: 0.35rem;
+      font-size: 0.72rem;
+      color: var(--color-on-surface-variant);
+      line-height: 1.45;
+    }
+    .toggle-pass {
+      position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%);
+      background: none; border: none; color: var(--color-on-surface-variant);
+      cursor: pointer; padding: 0.2rem; line-height: 1;
+      transition: color 0.15s;
+    }
+    .toggle-pass:hover { color: var(--color-on-surface); }
+    .toggle-pass svg { display: block; }
+
+    .divider { border: none; border-top: 1px solid var(--color-outline-variant); margin: 1.5rem 0; }
+
+    .btn-grade {
+      width: 100%;
+      padding: 0.9rem 1.25rem;
+      font-family: var(--font-sans);
+      font-size: 0.95rem;
+      font-weight: 600;
+      transition: filter 0.2s;
+      letter-spacing: 0.02em;
+    }
+    .btn-grade:hover  { filter: brightness(1.05); }
+    .btn-grade:active { filter: brightness(0.97); }
+
+    .sessions-row { margin-top: 1.35rem; }
+    .btn-sessions {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      width: 100%;
+      padding: 1rem 1.35rem;
+      background: rgba(168,196,249,0.1);
+      border: 1.5px solid rgba(168,196,249,0.35);
+      border-radius: var(--radius-pill);
+      color: inherit;
+      text-decoration: none;
+      cursor: pointer;
+      transition: border-color 0.18s, background 0.18s;
+      text-align: left;
+    }
+    .btn-sessions:hover {
+      border-color: var(--color-on-primary-container);
+      background: rgba(168,196,249,0.16);
+    }
+    .btn-sessions-icon {
+      flex-shrink: 0;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: rgba(168,196,249,0.22);
+      border: 1px solid rgba(201,218,252,0.45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--color-on-primary-container);
+    }
+    .btn-sessions-icon svg { display: block; }
+    .btn-sessions-text { min-width: 0; }
+    .btn-sessions-title {
+      display: block;
+      font-size: 1.02rem;
+      font-weight: 700;
+      color: var(--color-on-surface);
+      letter-spacing: -0.02em;
+      margin-bottom: 0.2rem;
+    }
+    .btn-sessions-desc {
+      display: block;
+      font-size: 0.78rem;
+      font-weight: 400;
+      color: var(--color-on-surface-variant);
+      line-height: 1.35;
+    }
+
+    .loading-overlay {
+      gap: 1.5rem;
+    }
+    .loading-title  { font-size: 1.05rem; font-weight: 600; color: var(--color-on-surface); }
+    .loading-progress-wrap {
+      width: min(540px, 86vw);
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+    }
+    .loading-progress-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-family: var(--font-mono);
+      font-size: 0.74rem;
+      color: var(--color-on-surface-variant);
+    }
+    .loading-progress-bar {
+      width: 100%;
+      height: 10px;
+      border-radius: 9999px;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid var(--color-outline-variant);
+      overflow: hidden;
+    }
+    .loading-progress-fill {
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, #a8c4f9 0%, #8fd4c4 100%);
+      transition: width 0.2s ease;
+    }
+    .loading-steps  { display: flex; flex-direction: column; align-items: center; gap: 0.35rem; }
+    .loading-step {
+      font-size: 0.8rem;
+      color: var(--color-on-surface-variant);
+      opacity: 0;
+    }
+    .loading-step.active {
+      color: var(--color-on-primary-container);
+      opacity: 1;
+    }
+
+    .fineprint {
+      margin-top: 1.5rem;
+      font-size: 0.74rem;
+      color: var(--color-on-surface-variant);
+      text-align: center;
+    }
+    .fineprint a { color: var(--color-primary); text-decoration: none; }
+    .fineprint a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+<div class="top-row">
+  <a href="{{ url_for('main.index') }}" class="btn-chip">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="15 18 9 12 15 6"/>
+    </svg>
+    Menu
+  </a>
+</div>
+
+<div class="card">
+  <h1>Comment grading</h1>
+  <div class="subtitle">Upload the assignment + model solution and generate comments for students.</div>
+
+  {% if errors %}
+  <div class="error-box">
+    <div class="error-box-title">Errors</div>
+    {% for err in errors %}
+    <div class="error-item">{{ err }}</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="error-box" id="clientErrorBox" style="display: none; margin-bottom: 1rem;">
+    <div class="error-box-title">Error</div>
+    <div id="clientErrorText"></div>
+  </div>
+
+  <form id="gradeForm" action="#" method="post" enctype="multipart/form-data">
+
+    <div class="section">
+      <div class="section-label">Gemini API Key</div>
+      <div class="input-group">
+        <input type="password" id="apiKey" name="api_key"
+               placeholder="Enter your Gemini API key..." required autocomplete="off" />
+        <button type="button" class="toggle-pass" onclick="togglePassword()" title="Toggle visibility">
+          <svg id="eyeIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
+      </div>
+      <div class="field-hint"><a href="https://aistudio.google.com/apikey" target="_blank">Get a gemini API key</a></div>
+    </div>
+
+    <div class="section">
+      <div class="section-label">Model</div>
+      <div class="input-group">
+        <select id="modelName" name="model_name" required>
+          <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+          <option value="gemini-2.5-pro">gemini-2.5-pro</option>
+          <option value="gemini-2.5-flash-lite" selected>gemini-2.5-flash-lite</option>
+          <option value="gemini-3-flash-preview">gemini-3-flash-preview</option>
+          <option value="gemini-3.1-pro-preview">gemini-3.1-pro-preview</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-label">Session title (Optional)</div>
+      <div class="input-group">
+        <input type="text" name="session_title" id="sessionTitle" maxlength="200"
+               placeholder="e.g. Homework 2 · Section A — Spring 2025"
+               autocomplete="off" />
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-label">Past auto-check batch (Optional)</div>
+      <div class="input-group">
+        <select id="batchRunSelect" name="batch_run_id" aria-describedby="batchRunHint">
+          <option value="">— None —</option>
+        </select>
+      </div>
+      <p class="field-hint" id="batchRunHint">
+        If you choose a saved automatic-checking run, each student’s checker output (matched by <strong>exact .py filename</strong>) is added to the AI comment prompt. Leave empty to grade without it.
+      </p>
+    </div>
+
+    <hr class="divider" />
+
+    <div class="section">
+      <div class="section-label">Assignment Description</div>
+      <div class="upload-zone" id="zone-assignment">
+        <input type="file" name="assignment" id="assignmentFile" accept=".md,.txt" required
+               onchange="handleSingleFile(this, 'zone-assignment', 'name-assignment')" />
+        <svg class="upload-icon-svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
+        </svg>
+        <div class="upload-title">Drop or click to upload Markdown file</div>
+        <div class="upload-hint">The .md file describing the assignment (in Hebrew)</div>
+        <div class="file-name-display" id="name-assignment"></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-label">Model Solution</div>
+      <div class="upload-zone" id="zone-model">
+        <input type="file" name="model_solution" id="modelFile" accept=".py" required
+               onchange="handleSingleFile(this, 'zone-model', 'name-model')" />
+        <svg class="upload-icon-svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
+        </svg>
+        <div class="upload-title">Drop or click to upload Python file</div>
+        <div class="upload-hint">The teacher's correct reference implementation (.py)</div>
+        <div class="file-name-display" id="name-model"></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-label">Student Submissions</div>
+      <div class="upload-zone" id="zone-students">
+        <input type="file" name="student_files" id="studentFiles" accept=".py" multiple required
+               onchange="handleMultiFile(this, 'zone-students', 'count-students')" />
+        <svg class="upload-icon-svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+        </svg>
+        <div class="upload-title">Drop or click to upload student .py files</div>
+        <div class="upload-hint">Named <code style="background:rgba(255,255,255,0.07);padding:1px 6px;border-radius:3px;font-family:var(--font-mono);font-size:0.72rem">testName_studentID.py</code> — each file is sent and graded in a separate request; progress is saved after every student.</div>
+        <div class="file-count-display" id="count-students"></div>
+      </div>
+    </div>
+
+    <button type="submit" class="btn-grade" id="gradeBtn">Grade All Submissions</button>
+  </form>
+</div>
+
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-title" id="loadingTitle">Starting…</div>
+  <div class="loading-progress-wrap">
+    <div class="loading-progress-meta">
+      <span id="loadingCount">0 / 0</span>
+      <span id="loadingPercent">0%</span>
+    </div>
+    <div class="loading-progress-bar">
+      <div class="loading-progress-fill" id="loadingProgressFill"></div>
+    </div>
+  </div>
+  <div class="loading-detail" id="loadingDetail" style="font-size:0.82rem;color:var(--color-on-surface-variant);text-align:center;max-width:22rem;line-height:1.45;"></div>
+</div>
+
+<script>
+  let eyeOpen = true;
+  function togglePassword() {
+    const input = document.getElementById('apiKey');
+    eyeOpen = !eyeOpen;
+    input.type = eyeOpen ? 'password' : 'text';
+    document.getElementById('eyeIcon').innerHTML = eyeOpen
+      ? '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>'
+      : '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>';
+  }
+
+  function handleSingleFile(input, zoneId, displayId) {
+    if (input.files.length > 0) {
+      document.getElementById(zoneId).classList.add('has-file');
+      const d = document.getElementById(displayId);
+      d.textContent = input.files[0].name;
+      d.style.display = 'block';
+    }
+  }
+
+  function handleMultiFile(input, zoneId, displayId) {
+    if (input.files.length > 0) {
+      document.getElementById(zoneId).classList.add('has-file');
+      const d = document.getElementById(displayId);
+      d.textContent = `${input.files.length} file${input.files.length > 1 ? 's' : ''} selected`;
+      d.style.display = 'block';
+    }
+  }
+
+  document.querySelectorAll('.upload-zone').forEach(zone => {
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+    zone.addEventListener('drop', () => zone.classList.remove('drag-over'));
+  });
+
+  (async function loadBatchRunOptions() {
+    const sel = document.getElementById('batchRunSelect');
+    if (!sel) return;
+    try {
+      const res = await fetch('{{ url_for("grading.grade_batch_runs_list") }}');
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.ok || !Array.isArray(json.batches)) return;
+      for (const b of json.batches) {
+        const opt = document.createElement('option');
+        opt.value = b.id;
+        const title = (b.session_title || '').trim() || 'Untitled batch';
+        const an = (b.assignment_name || '').trim() || '—';
+        const n = typeof b.submission_count === 'number' ? b.submission_count : 0;
+        const when = (b.created_at || '').trim();
+        opt.textContent = `${title} · ${an} · ${n} file(s)${when ? ' · ' + when : ''}`;
+        sel.appendChild(opt);
+      }
+    } catch (_) { /* keep — None — only */ }
+  })();
+
+  function showClientError(msg) {
+    const box = document.getElementById('clientErrorBox');
+    const text = document.getElementById('clientErrorText');
+    text.textContent = typeof msg === 'string' ? msg : JSON.stringify(msg);
+    box.style.display = 'block';
+    box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+  function hideClientError() {
+    document.getElementById('clientErrorBox').style.display = 'none';
+  }
+
+  function setLoadingProgress(done, total) {
+    const safeTotal = Math.max(0, Number(total) || 0);
+    const safeDone = Math.min(safeTotal, Math.max(0, Number(done) || 0));
+    const pct = safeTotal > 0 ? Math.round((safeDone / safeTotal) * 100) : 0;
+    document.getElementById('loadingCount').textContent = `${safeDone} / ${safeTotal}`;
+    document.getElementById('loadingPercent').textContent = `${pct}%`;
+    document.getElementById('loadingProgressFill').style.width = `${pct}%`;
+  }
+
+  document.getElementById('gradeForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    hideClientError();
+
+    const apiKey = document.getElementById('apiKey').value.trim();
+    const modelName = document.getElementById('modelName').value;
+    const sessionTitle = document.getElementById('sessionTitle').value;
+    const assignmentFile = document.getElementById('assignmentFile').files[0];
+    const modelFile = document.getElementById('modelFile').files[0];
+    const studentInput = document.getElementById('studentFiles');
+    const studentFiles = studentInput.files;
+
+    if (!apiKey || !assignmentFile || !modelFile || studentFiles.length === 0) return;
+
+    const overlay = document.getElementById('loadingOverlay');
+    const loadingTitle = document.getElementById('loadingTitle');
+    const loadingDetail = document.getElementById('loadingDetail');
+    const gradeBtn = document.getElementById('gradeBtn');
+    let willNavigate = false;
+
+    overlay.classList.add('active');
+    gradeBtn.disabled = true;
+    loadingTitle.textContent = 'Saving assignment & model…';
+    loadingDetail.textContent = 'Creating session in the database.';
+    setLoadingProgress(0, 0);
+
+    try {
+      const initFd = new FormData();
+      initFd.append('api_key', apiKey);
+      initFd.append('model_name', modelName);
+      initFd.append('session_title', sessionTitle);
+      initFd.append('batch_run_id', document.getElementById('batchRunSelect').value || '');
+      initFd.append('assignment', assignmentFile);
+      initFd.append('model_solution', modelFile);
+
+      const initRes = await fetch('{{ url_for("grading.grade_init") }}', { method: 'POST', body: initFd });
+      const initJson = await initRes.json().catch(() => ({}));
+      if (!initRes.ok || !initJson.ok) {
+        const errs = (initJson.errors && initJson.errors.join('\n')) || initJson.error || `Failed to start (${initRes.status})`;
+        showClientError(errs);
+        return;
+      }
+      const sessionId = initJson.session_id;
+      const total = studentFiles.length;
+      setLoadingProgress(0, total);
+
+      for (let i = 0; i < total; i++) {
+        const f = studentFiles[i];
+        loadingTitle.textContent = `Grading student ${i + 1} of ${total}`;
+        loadingDetail.textContent = f.name;
+
+        const fd = new FormData();
+        fd.append('student_file', f, f.name);
+
+        const stRes = await fetch(`/grade/${sessionId}/student`, { method: 'POST', body: fd });
+        const stJson = await stRes.json().catch(() => ({}));
+        if (!stRes.ok || !stJson.ok) {
+          const err = stJson.error || `Request failed (${stRes.status})`;
+          showClientError(
+            `Stopped after ${i} file(s). ${err}\n\n` +
+            `Partial results were saved. You can open this run from Past sessions:\n/results/${sessionId}`
+          );
+          return;
+        }
+        setLoadingProgress(i + 1, total);
+      }
+
+      loadingTitle.textContent = 'Done';
+      loadingDetail.textContent = 'Opening results…';
+      setLoadingProgress(total, total);
+      willNavigate = true;
+      window.location.href = `/results/${sessionId}`;
+    } catch (err) {
+      showClientError(err && err.message ? err.message : String(err));
+    } finally {
+      gradeBtn.disabled = false;
+      if (!willNavigate) overlay.classList.remove('active');
+    }
+  });
+</script>
+</body>
+</html>
+

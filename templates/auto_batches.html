@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Past Automatic Checking — Check Mate</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/ui.css') }}" />
+  <style>
+    body {
+      font-family: var(--font-sans);
+      background: var(--color-background);
+      color: var(--color-on-surface);
+      min-height: 100vh;
+      padding: 1.5rem 1rem 3rem;
+    }
+    .top-bar {
+      max-width: 960px;
+      margin: 0 auto 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+    h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--color-on-surface);
+      flex: 1;
+      min-width: 200px;
+    }
+    .card {
+      max-width: 960px;
+      margin: 0 auto;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .empty {
+      padding: 2.5rem 1.5rem;
+      text-align: center;
+      color: var(--color-on-surface-variant);
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
+    .list-hint {
+      padding: 0.65rem 1.25rem;
+      background: var(--color-surface-container-high);
+      border-bottom: 1px solid var(--color-outline-variant);
+      font-size: 0.68rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--color-on-surface-variant);
+    }
+    .session-row {
+      padding: 1.1rem 1.25rem 1.15rem;
+      border-bottom: 1px solid var(--color-outline-variant);
+    }
+    .session-row:last-child { border-bottom: none; }
+    .session-row:hover { background: rgba(255,255,255,0.025); }
+    .session-row-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 0.65rem;
+    }
+    .session-row-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--color-on-surface);
+      word-break: break-word;
+    }
+    .session-row-title.muted {
+      color: var(--color-on-surface-variant);
+      font-weight: 600;
+    }
+    .meta-value.file { font-family: var(--font-mono); font-size: 0.74rem; }
+    .session-row-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem 1.35rem;
+      font-size: 0.78rem;
+      color: var(--color-on-surface-variant);
+    }
+    .meta-item { display: inline-flex; align-items: baseline; gap: 0.35rem; flex-wrap: wrap; }
+    .meta-label {
+      font-size: 0.62rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      opacity: 0.85;
+    }
+    .meta-value { color: var(--color-on-surface); }
+    .mono { font-family: var(--font-mono); font-size: 0.74rem; }
+    .counts .p { color: var(--color-good); }
+    .counts .f { color: var(--color-bad); }
+    .open-btn {
+      display: inline-flex;
+      align-items: center;
+      flex-shrink: 0;
+      background: linear-gradient(180deg, #c9dafc 0%, #a8c4f9 100%);
+      border: 1px solid rgba(255,255,255,0.35);
+      color: #2f3b52;
+      text-decoration: none;
+      padding: 0.45rem 1.1rem;
+      border-radius: var(--radius-pill);
+      font-size: 0.76rem;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .open-btn:hover { filter: brightness(1.06); }
+    @media (max-width: 560px) {
+      .session-row-head { flex-direction: column; align-items: stretch; }
+      .open-btn { align-self: flex-start; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="top-bar">
+  <a href="{{ url_for('main.index') }}" class="btn-chip">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+    Menu
+  </a>
+  <h1>Past Automatic Checking</h1>
+</div>
+
+<div class="card">
+  {% if not batches %}
+  <div class="empty">No saved batch runs yet. Run the checker on student files from <strong style="color:var(--color-on-surface)">Automatic checking</strong> — each run is saved automatically and listed here.</div>
+  {% else %}
+  <div class="session-list">
+    <p class="list-hint">Newest first · Title is shown first on each row (like comment sessions)</p>
+    {% for b in batches %}
+    <article class="session-row">
+      <div class="session-row-head">
+        <h2 class="session-row-title{% if not b.session_title %} muted{% endif %}">{{ b.session_title or "Untitled batch run" }}</h2>
+        <a class="open-btn" href="{{ url_for('auto.batch_detail_page', batch_id=b.id) }}">Open</a>
+      </div>
+      <div class="session-row-meta">
+        <span class="meta-item">
+          <span class="meta-label">Assignment file</span>
+          <span class="meta-value file">{{ b.assignment_name }}</span>
+        </span>
+        <span class="meta-item">
+          <span class="meta-label">When</span>
+          <span class="meta-value mono">{{ b.created_at }}</span>
+        </span>
+        <span class="meta-item">
+          <span class="meta-label">Batch id</span>
+          <span class="meta-value mono">{{ b.id }}</span>
+        </span>
+        <span class="meta-item">
+          <span class="meta-label">Files</span>
+          <span class="meta-value mono">{{ b.submission_count }}</span>
+        </span>
+        <span class="meta-item counts">
+          <span class="meta-label">Exit 0</span>
+          <span class="p mono">{{ b.pass_count }}</span>
+          <span class="meta-label" style="margin-left:0.5rem;">Other</span>
+          <span class="f mono">{{ b.fail_count }}</span>
+        </span>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+
+</body>
+</html>

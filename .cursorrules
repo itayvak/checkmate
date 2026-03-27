@@ -1,0 +1,60 @@
+# Project: checkmate
+
+## Overview
+- Small Flask web app for grading multiple student Python submissions with Google Gemini.
+- Application code lives in the Python package `app/` (not a single `app.py` at repo root).
+- UI is server-rendered via Jinja templates in `templates/`.
+
+## Tech Stack
+- Python 3
+- Flask (`flask>=3.0.0`)
+- Requests (`requests>=2.31.0`)
+- Frontend: plain HTML/CSS/JS in Jinja templates
+- Syntax highlighting in results view via CDN `highlight.js`
+
+## Entry Point And Runtime
+- Flask factory: `create_app()` in `app/__init__.py`; default instance `app` for WSGI (`gunicorn app:app`).
+- Local dev: `python run.py` (debug, port `5000`).
+- Docker: `WORKDIR /srv`, copies `app/` and `templates/`, gunicorn target `app:app`.
+
+## Package Layout (`app/`)
+- `__init__.py` — `create_app()`, registers blueprints, sets `template_folder` to repo `templates/`.
+- `db.py` — SQLite (`grading_sessions.db` at project root unless `CHECKMATE_DATA_DIR` is set), `init_db()` on import.
+- `gemini_client.py` — `SUPPORTED_MODELS`, `REVIEW_SCHEMA`, `call_gemini`, `generate_auto_checker_prompt`, `normalize_checker_script_response`, `review_student_code`.
+- `utils.py` — `parse_student_identity`.
+- Blueprints:
+  - `routes_main` (`main`) — `GET /`, `GET /grade`.
+  - `routes_auto` (`auto`) — `GET /auto`, `POST /auto/generate`, `POST /auto/save/<id>`, `POST /auto/test/<id>`.
+  - `routes_grade` (`grading`) — `POST /grade/init`, `POST /grade/<session_id>/student`.
+  - `routes_sessions` (`sessions`) — `GET /results/<session_id>`, `GET /sessions`, `GET /sessions/<id>/open`.
+
+Jinja `url_for` uses blueprint endpoints, e.g. `main.index`, `grading.grade_init`, `auto.auto_generate`, `sessions.results`.
+
+## High-Level Flow
+1. User opens `/` (main menu).
+2. From the menu, user opens `/grade` and uploads: Gemini API key, assignment markdown, model solution `.py`, one or more student `.py` files.
+3. `POST /grade/init` saves assignment + model + API settings to a new SQLite session (empty `results`).
+4. For each student file, the browser calls `POST /grade/<session_id>/student` (one file per request). Each call grades via Gemini, merges into `results`, and persists.
+5. When all files finish, the browser navigates to `/results/<session_id>`.
+
+## Data And State
+- Persistent: `grading_sessions.db` and automatic-check rows (see `app/db.py`).
+- No Flask signed-session cookies: the active run is identified by the URL path.
+
+## Conventions And Assumptions
+- Student filename convention expected: `testName_studentID.py` (split on last underscore).
+- Input text decoding: UTF-8 first, latin-1 fallback for student files.
+- Annotation type restricted to `"implementation"` in reviews.
+- Comments returned to students are Hebrew; internal description text is English.
+
+## Known Risks / Caveats
+- No authentication; anyone with `/results/<uuid>` can view that run if they guess or obtain the id.
+- API key may be stored inside the saved session JSON.
+- SQLite DB grows with every run unless pruned.
+- Direct dependency on external Gemini API availability and schema adherence.
+
+## Useful Improvement Targets
+- Stop persisting API keys in session JSON; use server env or per-request entry only.
+- Add request retry/backoff and clearer Gemini error surfacing in UI.
+- Add tests for prompt construction, annotation validation, and DB helpers.
+- Optional: restore a reusable comment pool (`comment_pool.json`) and `GET /pool` if product needs it.

@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Automatic checking — Check Mate</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/ui.css') }}" />
+  <style>
+    body {
+      font-family: var(--font-sans);
+      background: var(--color-background);
+      color: var(--color-on-surface);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem 1rem;
+      gap: 1rem;
+    }
+
+    .top-row {
+      width: 100%;
+      max-width: 960px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 960px;
+      padding: 1.5rem;
+    }
+
+    h1 {
+      font-size: clamp(1.6rem, 3vw, 2.1rem);
+      font-weight: 700;
+      color: var(--color-on-surface);
+      margin-bottom: 0.25rem;
+    }
+
+    .subtitle {
+      color: var(--color-on-surface-variant);
+      font-size: 0.95rem;
+      font-weight: 300;
+      letter-spacing: 0.01em;
+      margin-bottom: 1.25rem;
+    }
+
+    .error-box {
+      font-size: 0.85rem;
+      display: none;
+      margin-bottom: 1rem;
+    }
+
+    .section { margin-bottom: 1.2rem; }
+
+    .section-label {
+      margin-bottom: 0.45rem;
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+    }
+
+    .input-group { position: relative; }
+
+    .input-group input,
+    .input-group select,
+    .input-group textarea {
+      padding: 0.75rem 1rem;
+      font-family: var(--font-mono);
+      font-size: 0.83rem;
+    }
+
+    .input-group textarea {
+      min-height: 92px;
+      resize: vertical;
+      font-family: var(--font-sans);
+      line-height: 1.4;
+    }
+
+    .toggle-pass {
+      position: absolute;
+      right: 0.75rem;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: var(--color-on-surface-variant);
+      cursor: pointer;
+      padding: 0.2rem;
+      line-height: 1;
+      transition: color 0.15s;
+    }
+
+    .toggle-pass:hover { color: var(--color-on-surface); }
+
+    .btn-row {
+      display: flex;
+      gap: 0.8rem;
+      flex-wrap: wrap;
+      margin-top: 0.5rem;
+    }
+
+    .btn-primary {
+      flex: 1;
+      padding: 0.95rem 1.25rem;
+      font-size: 0.95rem;
+      transition: filter 0.2s;
+    }
+
+    .btn-primary:hover { filter: brightness(1.05); }
+    .btn-primary:active { filter: brightness(0.97); }
+
+    .btn-secondary {
+      padding: 0.85rem 1.05rem;
+      font-size: 0.95rem;
+    }
+
+    .btn-secondary:hover { background: rgba(201,218,252,0.15); }
+
+    .btn-secondary[disabled],
+    .btn-primary[disabled] {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .code-editor {
+      margin-top: 1rem;
+      background: var(--color-surface-container-high);
+      border: 1px solid var(--color-outline-variant);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+
+    .code-editor textarea {
+      width: 100%;
+      min-height: 260px;
+      padding: 1rem;
+      border: none;
+      background: transparent;
+      outline: none;
+      color: var(--color-on-surface);
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      line-height: 1.55;
+      resize: vertical;
+    }
+
+    .loading-overlay {
+      gap: 1.25rem;
+      padding: 1rem;
+    }
+
+    .spinner {
+      width: 48px;
+      height: 48px;
+      border: 2.5px solid var(--color-outline-variant);
+      border-top-color: var(--color-primary);
+      border-radius: 50%;
+      animation: spin 0.75s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loading-title { font-size: 1.05rem; font-weight: 600; color: var(--color-on-surface); }
+    .loading-detail { font-size: 0.82rem; color: var(--color-on-surface-variant); text-align: center; max-width: 28rem; line-height: 1.45; }
+
+    .fineprint {
+      margin-top: 1rem;
+      color: var(--color-on-surface-variant);
+      font-size: 0.75rem;
+      line-height: 1.45;
+    }
+
+    /* ── Modal editor ── */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(20,28,40,0.72);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal-dialog {
+      width: 100%;
+      max-width: 980px;
+      background: var(--color-surface-container);
+      border: 1px solid var(--color-outline-variant);
+      border-radius: 22px;
+      padding: 1.25rem;
+      overflow: hidden;
+    }
+    .modal-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 0.75rem;
+    }
+    .modal-title {
+      font-size: 0.95rem;
+      font-weight: 800;
+      color: var(--color-on-surface);
+    }
+    .modal-close {
+      padding: 0.35rem 0.7rem;
+      border-radius: var(--radius-pill);
+      border: 1.5px solid rgba(201,218,252,0.35);
+      background: rgba(201,218,252,0.10);
+      color: var(--color-on-surface-variant);
+      cursor: pointer;
+      font-weight: 700;
+      user-select: none;
+    }
+    .modal-close:hover { background: rgba(201,218,252,0.15); }
+    .modal-textarea {
+      width: 100%;
+      min-height: 320px;
+      background: var(--color-surface-container-high);
+      border: 1px solid var(--color-outline-variant);
+      border-radius: 16px;
+      padding: 1rem;
+      outline: none;
+      color: var(--color-on-surface);
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      line-height: 1.55;
+      resize: vertical;
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.8rem;
+      flex-wrap: wrap;
+      margin-top: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="top-row">
+    <a href="{{ url_for('main.index') }}" class="btn-chip">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="15 18 9 12 15 6"/>
+      </svg>
+      Menu
+    </a>
+  </div>
+
+  <div class="card">
+    <h1>Automatic checking</h1>
+    <div class="subtitle">Generate a checker script with AI, or paste your own script manually.</div>
+
+    <div class="error-box" id="clientErrorBox">
+      <div class="error-box-title">Error</div>
+      <div id="clientErrorText"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-label">Gemini API key (AI generation only)</div>
+      <div class="input-group">
+        <input type="password" id="apiKey" name="api_key" placeholder="Enter your Gemini API key..." required autocomplete="off" />
+        <button type="button" class="toggle-pass" onclick="togglePassword()" title="Toggle visibility">
+          <svg id="eyeIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-label">Model</div>
+      <div class="input-group">
+        <select id="modelName" name="model_name" required>
+          <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+          <option value="gemini-2.5-pro">gemini-2.5-pro</option>
+          <option value="gemini-2.5-flash-lite">gemini-2.5-flash-lite</option>
+          <option value="gemini-3-flash-preview">gemini-3-flash-preview</option>
+          <option value="gemini-3.1-pro-preview">gemini-3.1-pro-preview</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-label">Assignment Description (.md)</div>
+      <div class="upload-zone" id="zone-assignment">
+        <input type="file" name="assignment" id="assignmentFile" accept=".md,.txt" required onchange="handleSingleFile(this, 'zone-assignment', 'name-assignment')" />
+        <div class="upload-title">Drop or click to upload Markdown</div>
+        <div class="upload-hint">The assignment description (in Hebrew)</div>
+        <div class="upload-hint" id="name-assignment" style="display:none;color:var(--color-good);font-family:var(--font-mono);font-size:0.78rem;margin-top:0.35rem;"></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-label">Model Solution (.py)</div>
+      <div class="upload-zone" id="zone-model">
+        <input type="file" name="model_solution" id="modelFile" accept=".py" required onchange="handleSingleFile(this, 'zone-model', 'name-model')" />
+        <div class="upload-title">Drop or click to upload Python file</div>
+        <div class="upload-hint">Reference implementation</div>
+        <div class="upload-hint" id="name-model" style="display:none;color:var(--color-good);font-family:var(--font-mono);font-size:0.78rem;margin-top:0.35rem;"></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-label">Optional extra instructions</div>
+      <div class="input-group">
+        <textarea id="extraInstructions" placeholder="Anything you want the AI to consider (e.g., specific tricky cases, output formatting expectations, etc.)"></textarea>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button type="button" class="btn-primary" id="generateBtn">Generate checker script</button>
+      <button type="button" class="btn-secondary" id="manualBtn">Use manual script</button>
+    </div>
+
+  </div>
+
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="spinner"></div>
+    <div class="loading-title" id="loadingTitle">Generating…</div>
+    <div class="loading-detail" id="loadingDetail"></div>
+  </div>
+
+  <div class="modal-overlay" id="checkerModal" aria-hidden="true">
+    <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="checkerModalTitle">
+      <div class="modal-head">
+        <div class="modal-title" id="checkerModalTitle">Checker script (editable)</div>
+        <button type="button" class="modal-close" id="modalCloseBtn">Discard</button>
+      </div>
+      <textarea class="modal-textarea" id="checkerScriptModal"></textarea>
+        <div style="margin-top:0.75rem;">
+          <div class="section-label" style="margin-bottom:0.35rem;">Test output</div>
+          <pre id="modalTestOutput" style="white-space:pre-wrap;background:rgba(0,0,0,0.12);border:1px solid var(--color-outline-variant);border-radius:16px;padding:0.9rem;min-height:110px;margin:0;color:var(--color-on-surface);font-family:var(--font-mono);font-size:0.82rem;line-height:1.55;"></pre>
+        </div>
+      <div class="modal-actions">
+          <button type="button" class="btn-secondary" id="modalTestBtn" style="border:1.5px solid rgba(201,218,252,0.35);background:rgba(201,218,252,0.10);padding:0.85rem 1.05rem;border-radius:var(--radius-pill);font-weight:700;cursor:pointer;">
+            Test script
+          </button>
+        <button type="button" class="btn-primary" id="modalContinueBtn" style="flex:1;min-width:12rem;border:1px solid rgba(255,255,255,0.35);background:linear-gradient(180deg,#c9dafc 0%,#a8c4f9 100%);color:#2f3b52;padding:0.85rem 1.05rem;border-radius:var(--radius-pill);font-weight:700;cursor:pointer;">
+          Continue to student runs
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="manualScriptModal" aria-hidden="true">
+    <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="manualScriptModalTitle">
+      <div class="modal-head">
+        <div class="modal-title" id="manualScriptModalTitle">Paste manual checker script</div>
+        <button type="button" class="modal-close" id="manualModalCloseBtn">Cancel</button>
+      </div>
+      <textarea class="modal-textarea" id="manualScriptInput" placeholder="Paste your checker.py script here..."></textarea>
+      <div class="modal-actions">
+        <button type="button" class="btn-primary" id="manualModalContinueBtn" style="flex:1;min-width:12rem;border:1px solid rgba(255,255,255,0.35);background:linear-gradient(180deg,#c9dafc 0%,#a8c4f9 100%);color:#2f3b52;padding:0.85rem 1.05rem;border-radius:var(--radius-pill);font-weight:700;cursor:pointer;">
+          Save and continue
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let eyeOpen = true;
+    function togglePassword() {
+      const input = document.getElementById('apiKey');
+      eyeOpen = !eyeOpen;
+      input.type = eyeOpen ? 'password' : 'text';
+      document.getElementById('eyeIcon').innerHTML = eyeOpen
+        ? '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>'
+        : '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>';
+    }
+
+    function showClientError(msg) {
+      const box = document.getElementById('clientErrorBox');
+      const text = document.getElementById('clientErrorText');
+      text.textContent = typeof msg === 'string' ? msg : JSON.stringify(msg);
+      box.style.display = 'block';
+      box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function hideClientError() {
+      document.getElementById('clientErrorBox').style.display = 'none';
+    }
+
+    function handleSingleFile(input, zoneId, displayId) {
+      if (input.files.length > 0) {
+        document.getElementById(zoneId).classList.add('has-file');
+        const d = document.getElementById(displayId);
+        d.textContent = input.files[0].name;
+        d.style.display = 'block';
+      }
+    }
+
+    let autoSessionId = null;
+
+    function showModal() {
+      const modal = document.getElementById('checkerModal');
+      modal.classList.add('active');
+      modal.setAttribute('aria-hidden', 'false');
+    }
+
+    function hideModal() {
+      const modal = document.getElementById('checkerModal');
+      modal.classList.remove('active');
+      modal.setAttribute('aria-hidden', 'true');
+    }
+
+    function showManualModal() {
+      const modal = document.getElementById('manualScriptModal');
+      modal.classList.add('active');
+      modal.setAttribute('aria-hidden', 'false');
+      const input = document.getElementById('manualScriptInput');
+      if (input) input.focus();
+    }
+
+    function hideManualModal() {
+      const modal = document.getElementById('manualScriptModal');
+      modal.classList.remove('active');
+      modal.setAttribute('aria-hidden', 'true');
+    }
+
+    async function onGenerate() {
+      hideClientError();
+
+      const apiKey = document.getElementById('apiKey').value.trim();
+      const modelName = document.getElementById('modelName').value;
+      const assignmentFile = document.getElementById('assignmentFile').files[0];
+      const modelFile = document.getElementById('modelFile').files[0];
+      const extraInstructions = document.getElementById('extraInstructions').value || '';
+
+      if (!apiKey) return showClientError('Gemini API key is required.');
+      if (!assignmentFile) return showClientError('Assignment .md file is required.');
+      if (!modelFile) return showClientError('Model solution .py file is required.');
+
+      const generateBtn = document.getElementById('generateBtn');
+      const overlay = document.getElementById('loadingOverlay');
+      const loadingTitle = document.getElementById('loadingTitle');
+      const loadingDetail = document.getElementById('loadingDetail');
+
+      generateBtn.disabled = true;
+      overlay.classList.add('active');
+      loadingTitle.textContent = 'Generating checker script…';
+      loadingDetail.textContent = 'Sending assignment + model solution to the AI.';
+
+      try {
+        const fd = new FormData();
+        fd.append('api_key', apiKey);
+        fd.append('model_name', modelName);
+        fd.append('assignment', assignmentFile, assignmentFile.name);
+        fd.append('model_solution', modelFile, modelFile.name);
+        fd.append('extra_instructions', extraInstructions);
+
+        const res = await fetch('{{ url_for("auto.auto_generate") }}', { method: 'POST', body: fd });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok || !json.ok) {
+          const errs = json.errors || json.error || `Generation failed (${res.status}).`;
+          throw new Error(Array.isArray(errs) ? errs.join('\\n') : String(errs));
+        }
+
+        autoSessionId = json.session_id;
+        const scriptVal = json.checker_script || '';
+        document.getElementById('checkerScriptModal').value = scriptVal;
+        showModal();
+
+        loadingTitle.textContent = 'Done';
+        loadingDetail.textContent = 'You can edit the script, test it, then continue to student runs.';
+      } catch (err) {
+        showClientError(err && err.message ? err.message : String(err));
+      } finally {
+        generateBtn.disabled = false;
+        overlay.classList.remove('active');
+      }
+    }
+
+    async function onUseManualScript() {
+      hideClientError();
+      showManualModal();
+    }
+
+    async function onManualModalContinue() {
+      hideClientError();
+
+      const assignmentFile = document.getElementById('assignmentFile').files[0];
+      const modelFile = document.getElementById('modelFile').files[0];
+      const extraInstructions = document.getElementById('extraInstructions').value || '';
+      const manualScript = (document.getElementById('manualScriptInput').value || '').trim();
+      if (!assignmentFile) return showClientError('Assignment .md file is required.');
+      if (!modelFile) return showClientError('Model solution .py file is required.');
+      if (!manualScript) return showClientError('Paste a checker script before continuing.');
+
+      const manualContinueBtn = document.getElementById('manualModalContinueBtn');
+      const overlay = document.getElementById('loadingOverlay');
+      const loadingTitle = document.getElementById('loadingTitle');
+      const loadingDetail = document.getElementById('loadingDetail');
+
+      manualContinueBtn.disabled = true;
+      overlay.classList.add('active');
+      loadingTitle.textContent = 'Saving manual checker…';
+      loadingDetail.textContent = 'Creating an auto-check session from your script.';
+
+      try {
+        const fd = new FormData();
+        fd.append('assignment', assignmentFile, assignmentFile.name);
+        fd.append('model_solution', modelFile, modelFile.name);
+        fd.append('extra_instructions', extraInstructions);
+        fd.append('checker_script', manualScript);
+
+        const res = await fetch('{{ url_for("auto.auto_manual") }}', { method: 'POST', body: fd });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok || !json.ok) {
+          const errs = json.errors || json.error || `Manual setup failed (${res.status}).`;
+          throw new Error(Array.isArray(errs) ? errs.join('\n') : String(errs));
+        }
+
+        autoSessionId = json.session_id;
+        document.getElementById('checkerScriptModal').value = json.checker_script || manualScript;
+        hideManualModal();
+        showModal();
+      } catch (err) {
+        showClientError(err && err.message ? err.message : String(err));
+      } finally {
+        manualContinueBtn.disabled = false;
+        overlay.classList.remove('active');
+      }
+    }
+
+    async function onContinueToBatch() {
+      hideClientError();
+      if (!autoSessionId) return showClientError('Generate the script first.');
+
+      const continueBtn = document.getElementById('modalContinueBtn');
+      const overlay = document.getElementById('loadingOverlay');
+      const loadingTitle = document.getElementById('loadingTitle');
+      const loadingDetail = document.getElementById('loadingDetail');
+
+      continueBtn.disabled = true;
+      overlay.classList.add('active');
+      loadingTitle.textContent = 'Saving…';
+      loadingDetail.textContent = 'Storing your checker before opening the batch page.';
+
+      try {
+        const script = document.getElementById('checkerScriptModal').value || '';
+        const fd = new FormData();
+        fd.append('checker_script', script);
+
+        const res = await fetch(`/auto/save/${autoSessionId}`, { method: 'POST', body: fd });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok || !json.ok) {
+          const err = json.error || json.errors || `Save failed (${res.status}).`;
+          throw new Error(Array.isArray(err) ? err.join('\\n') : String(err));
+        }
+
+        window.location.href = '/auto/run/' + encodeURIComponent(autoSessionId);
+      } catch (err) {
+        showClientError(err && err.message ? err.message : String(err));
+      } finally {
+        continueBtn.disabled = false;
+        overlay.classList.remove('active');
+      }
+    }
+
+    async function onTest() {
+      hideClientError();
+      if (!autoSessionId) return showClientError('Generate the script first.');
+
+      const testBtn = document.getElementById('modalTestBtn');
+      const overlay = document.getElementById('loadingOverlay');
+      const loadingTitle = document.getElementById('loadingTitle');
+      const loadingDetail = document.getElementById('loadingDetail');
+
+      testBtn.disabled = true;
+      overlay.classList.add('active');
+      loadingTitle.textContent = 'Testing…';
+      loadingDetail.textContent = 'Running the checker with the model solution as the student file (sanity check).';
+
+      try {
+        const script = document.getElementById('checkerScriptModal').value || '';
+        const fd = new FormData();
+        fd.append('checker_script', script);
+
+        const res = await fetch(`/auto/test/${autoSessionId}`, { method: 'POST', body: fd });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok || !json.ok) {
+          const err = json.error || json.errors || `Test failed (${res.status}).`;
+          throw new Error(Array.isArray(err) ? err.join('\\n') : String(err));
+        }
+
+        const out = (json.stdout || '') + (json.stderr ? (json.stdout ? '\\n' : '') + 'STDERR:\\n' + json.stderr : '');
+        document.getElementById('modalTestOutput').textContent = out || '(no output)';
+      } catch (err) {
+        showClientError(err && err.message ? err.message : String(err));
+      } finally {
+        testBtn.disabled = false;
+        overlay.classList.remove('active');
+      }
+    }
+
+    document.getElementById('generateBtn').addEventListener('click', onGenerate);
+    document.getElementById('manualBtn').addEventListener('click', onUseManualScript);
+    document.getElementById('manualModalContinueBtn').addEventListener('click', onManualModalContinue);
+    document.getElementById('manualModalCloseBtn').addEventListener('click', hideManualModal);
+    document.getElementById('modalContinueBtn').addEventListener('click', onContinueToBatch);
+    document.getElementById('modalCloseBtn').addEventListener('click', hideModal);
+    document.getElementById('modalTestBtn').addEventListener('click', onTest);
+  </script>
+</body>
+</html>
+

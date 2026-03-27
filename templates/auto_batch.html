@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Run checker on students — Check Mate</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/ui.css') }}" />
+  <style>
+    body {
+      font-family: var(--font-sans);
+      background: var(--color-background);
+      color: var(--color-on-surface);
+      min-height: 100vh;
+      padding: 1.5rem 1rem 2.5rem;
+    }
+
+    .top-row {
+      max-width: 960px;
+      margin: 0 auto 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .card {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 1.5rem;
+    }
+
+    h1 {
+      font-size: clamp(1.5rem, 3vw, 2rem);
+      font-weight: 700;
+      color: var(--color-on-surface);
+      margin-bottom: 0.25rem;
+    }
+
+    .subtitle {
+      color: var(--color-on-surface-variant);
+      font-size: 0.92rem;
+      margin-bottom: 1.25rem;
+      line-height: 1.45;
+    }
+
+    .meta {
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      color: var(--color-good);
+      margin-bottom: 1rem;
+    }
+
+    .error-box {
+      font-size: 0.85rem;
+      display: none;
+      margin-bottom: 1rem;
+    }
+
+    .section-label {
+      margin-bottom: 0.45rem;
+    }
+
+    .section { margin-bottom: 1.25rem; }
+
+    .input-group input {
+      padding: 0.75rem 1rem;
+      font-family: var(--font-sans);
+      font-size: 0.88rem;
+    }
+
+    .checker-area {
+      width: 100%;
+      min-height: 200px;
+      background: var(--color-surface-container-high);
+      border: 1px solid var(--color-outline-variant);
+      border-radius: 16px;
+      padding: 1rem;
+      color: var(--color-on-surface);
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+      line-height: 1.55;
+      resize: vertical;
+      outline: none;
+    }
+    .checker-area:focus { border-color: var(--color-primary); }
+
+    .upload-zone {
+      border: 1.5px dashed var(--color-outline);
+      border-radius: 18px;
+      padding: 1.1rem 1rem;
+      text-align: center;
+      cursor: pointer;
+      background: var(--color-surface-container-high);
+      position: relative;
+    }
+    .upload-zone:hover { border-color: var(--color-primary); background: rgba(168,196,249,0.1); }
+    .upload-zone.has-files { border-color: var(--color-good); background: rgba(143,212,196,0.1); }
+    .upload-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+
+    .btn-row { display: flex; gap: 0.8rem; flex-wrap: wrap; margin-top: 0.5rem; }
+
+    .btn-primary {
+      padding: 0.95rem 1.35rem;
+      font-size: 0.95rem;
+    }
+    .btn-primary:hover { filter: brightness(1.05); }
+    .btn-primary[disabled] { opacity: 0.55; cursor: not-allowed; }
+
+    .loading-overlay {
+      gap: 1rem;
+    }
+    .spinner {
+      width: 44px;
+      height: 44px;
+      border: 2.5px solid var(--color-outline-variant);
+      border-top-color: var(--color-primary);
+      border-radius: 50%;
+      animation: spin 0.75s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="top-row">
+    <a href="{{ url_for('auto.auto_check_page') }}" class="btn-chip">← Generator</a>
+    <a href="{{ url_for('main.index') }}" class="btn-chip">Menu</a>
+  </div>
+
+  <div class="card">
+    <h1>Run checker on students</h1>
+    <p class="subtitle">Upload one or more student <code style="font-family:var(--font-mono);font-size:0.85em;">.py</code> files. When you run, each file is checked, the batch is saved to the database, and you are taken to a page with the full checker script and every student’s output.</p>
+    {% if assignment_name %}
+    <div class="meta">Assignment file: {{ assignment_name }}</div>
+    {% endif %}
+
+    <div class="error-box" id="errBox">
+      <strong style="color:var(--color-bad);font-size:0.75rem;text-transform:uppercase;">Error</strong>
+      <div id="errText" style="margin-top:0.35rem;"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-label">Batch title (optional)</div>
+      <div class="input-group">
+        <input type="text" name="session_title" id="batchSessionTitle" maxlength="200"
+               placeholder="e.g. Lab 3 checker run — Section B"
+               autocomplete="off" />
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-label">Checker script (editable)</div>
+      <textarea class="checker-area" id="checkerScript" name="checker_script"></textarea>
+    </div>
+
+    <div class="section">
+      <div class="section-label">Student submissions</div>
+      <div class="upload-zone" id="studentZone">
+        <input type="file" id="studentFiles" name="student_files" accept=".py" multiple />
+        <div style="font-weight:600;color:var(--color-on-surface);margin-bottom:0.2rem;">Drop or click — multiple .py files</div>
+        <div style="font-size:0.8rem;color:var(--color-on-surface-variant);" id="studentHint">No files selected</div>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button type="button" class="btn-primary" id="runBtn">Run checker on all uploads</button>
+    </div>
+  </div>
+
+  <div class="loading-overlay" id="overlay">
+    <div class="spinner"></div>
+    <div style="color:var(--color-on-surface);font-weight:600;">Running checker…</div>
+    <div style="color:var(--color-on-surface-variant);font-size:0.85rem;max-width:24rem;text-align:center;line-height:1.45;">Saving results and opening the batch summary. This may take a while for many students.</div>
+  </div>
+
+  <script>
+    const EXECUTE_URL = {{ url_for('auto.auto_batch_execute', session_id=session_id)|tojson }};
+    document.getElementById('checkerScript').value = {{ checker_script|tojson }};
+
+    function showErr(msg) {
+      const box = document.getElementById('errBox');
+      document.getElementById('errText').textContent = msg;
+      box.style.display = 'block';
+    }
+    function hideErr() {
+      document.getElementById('errBox').style.display = 'none';
+    }
+
+    const studentInput = document.getElementById('studentFiles');
+    const studentZone = document.getElementById('studentZone');
+    const studentHint = document.getElementById('studentHint');
+
+    studentInput.addEventListener('change', () => {
+      const n = studentInput.files.length;
+      if (n === 0) {
+        studentZone.classList.remove('has-files');
+        studentHint.textContent = 'No files selected';
+      } else {
+        studentZone.classList.add('has-files');
+        studentHint.textContent = n + ' file(s) selected';
+      }
+    });
+
+    document.getElementById('runBtn').addEventListener('click', async () => {
+      hideErr();
+      const files = studentInput.files;
+      if (!files || files.length === 0) {
+        showErr('Select at least one student .py file.');
+        return;
+      }
+
+      const checker = document.getElementById('checkerScript').value || '';
+      if (!checker.trim()) {
+        showErr('Checker script is empty.');
+        return;
+      }
+
+      const btn = document.getElementById('runBtn');
+      const overlay = document.getElementById('overlay');
+      btn.disabled = true;
+      overlay.classList.add('active');
+
+      try {
+        const fd = new FormData();
+        fd.append('checker_script', checker);
+        fd.append('session_title', document.getElementById('batchSessionTitle').value || '');
+        for (let i = 0; i < files.length; i++) {
+          fd.append('student_files', files[i], files[i].name);
+        }
+
+        const res = await fetch(EXECUTE_URL, { method: 'POST', body: fd });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok || !json.ok) {
+          throw new Error(json.error || json.errors || 'Request failed (' + res.status + ')');
+        }
+        if (!json.batch_id) {
+          throw new Error('Server did not return a batch id.');
+        }
+        window.location.href = '/auto/batch/' + encodeURIComponent(json.batch_id);
+      } catch (e) {
+        showErr(e.message || String(e));
+      } finally {
+        btn.disabled = false;
+        overlay.classList.remove('active');
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,15 +1,28 @@
 # Check Mate
 
-Check Mate היא אפליקציית Flask לניהול ובדיקה של הגשות סטודנטים ב-Python.  
-האפליקציה מאפשרת למרצה להעלות מטלה ופתרון מודל, להריץ Checker על מספר קבצים, ולקבל משוב/אנוטציות בעזרת Google Gemini.
+אפליקציה לבדיקה שוטפת של תר"צים ומבחנים בקוד.
+לאחר העלאת הסורסים של חניכים, ניתן להריץ אותם בצורה אוטומטית ולקבל תוצאות על ההרצה, וניתן לג'נרט הערות על הקוד בצורה אוטומטית.
 
-## מה האפליקציה עושה
+יצירת סקריפט בדיקה אוטומטית וג'ינרוט הערות נעשה בעזרת AI
 
-- יצירת פרויקטים לכל מטלה בנפרד.
-- העלאת קובץ מטלה (`.md`) ופתרון מודל (`.py`).
-- העלאת הגשות סטודנטים והרצה מרוכזת של Checker.
-- שמירת תוצאות הרצה והיסטוריית סשנים במסד נתונים SQLite.
-- יצירת/שיפור משובים להערכה באמצעות Gemini.
+## דרישות
+
+1. ניתן להריץ את האפליקציה מקומית, או על מכונה וירטואלית.
+2. יש ליצור חשבון בGemini ולקבל API Key על מנת שהאפליקציה תוכל לשלוח בקשות לAI.
+
+## הרצה על מכונה בעזרת Docker
+
+:התקנה מהירה בעזרת סקריפט ההתקנה (מומלץ)
+
+```bash
+git clone https://github.com/itayvak/checkmate.git checkmate && cd checkmate && chmod +x deploy.sh && ./deploy.sh
+```
+
+ניתן גם להוסיף את הפרמטרים הבאים (אופציונלי):
+
+- --image_name
+- --port
+- --data_dir
 
 ## הרצה מקומית (פיתוח)
 
@@ -28,37 +41,6 @@ python run.py
 3. פתיחה בדפדפן:
 
 `http://localhost:5000`
-
-## פריסה עם Docker
-
-### התקנה מהירה בעזרת סקריפט ההתקנה (מומלץ)
-
-```bash
-git clone https://github.com/itayvak/checkmate.git checkmate && cd checkmate && chmod +x deploy.sh && ./deploy.sh
-```
-
-דוגמה עם פרמטרים מפורשים:
-
-```bash
-git clone https://github.com/itayvak/checkmate.git checkmate && cd checkmate && chmod +x deploy.sh && ./deploy.sh --image_name checkmate --port 5000 --data_dir /opt/checkmate-data
-```
-
-### בניית Image
-
-```bash
-docker build -t checkmate .
-```
-
-### הרצה עם מסד נתונים קבוע (Persistent Volume)
-
-```bash
-docker run --name checkmate \
-  -p 5000:5000 \
-  -v checkmate-data:/data \
-  -e CHECKMATE_DATA_DIR=/data \
-  --restart unless-stopped \
-  checkmate
-```
 
 ## מבנה קצר של הפרויקט
 

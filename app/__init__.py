@@ -14,16 +14,10 @@ def create_app() -> Flask:
 
     from . import db  # noqa: F401 — runs init_db on import
 
-    from .routes_auto import bp as auto_bp
-    from .routes_grade import bp as grading_bp
     from .routes_main import bp as main_bp
-    from .routes_sessions import bp as sessions_bp
     from .routes_projects import bp as projects_bp
 
     flask_app.register_blueprint(main_bp)
-    flask_app.register_blueprint(auto_bp)
-    flask_app.register_blueprint(grading_bp)
-    flask_app.register_blueprint(sessions_bp)
     flask_app.register_blueprint(projects_bp)
 
     return flask_app

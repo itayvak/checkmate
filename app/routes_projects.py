@@ -37,6 +37,14 @@ _MAX_BATCH_FILES = 80
 _PER_STUDENT_TIMEOUT_SEC = 90
 
 
+def _checker_subprocess_env() -> dict[str, str]:
+    """Force UTF-8 stdio so checker scripts can print non-ASCII safely on Windows."""
+    env = os.environ.copy()
+    env["PYTHONIOENCODING"] = "utf-8"
+    env["PYTHONUTF8"] = "1"
+    return env
+
+
 def _decode_upload(f) -> str:
     try:
         return f.read().decode("utf-8")
@@ -73,30 +81,21 @@ def _try_parse_checkmate_result(stdout: str) -> Optional[dict[str, Any]]:
 
 
 def _format_checker_run_output(r: dict[str, Any]) -> str:
-    chunks: list[str] = []
-    err = r.get("error")
-    if err:
-        chunks.append(f"ERROR: {err}")
-    out = r.get("stdout") or ""
-    se = r.get("stderr") or ""
+    """Return raw checker process output with no additional formatting."""
+    out = str(r.get("stdout") or "")
+    se = str(r.get("stderr") or "")
+    err = str(r.get("error") or "")
+
+    if out and se:
+        sep = "" if out.endswith("\n") else "\n"
+        return out + sep + se
     if out:
-        parsed = _try_parse_checkmate_result(out)
-        if parsed:
-            checks = parsed.get("checks") or []
-            passed = parsed.get("passed", sum(1 for c in checks if c.get("passed")))
-            total = parsed.get("total", len(checks))
-            lines = [f"RESULT: {passed}/{total} checks passed"]
-            for c in checks:
-                status = "PASS" if c.get("passed") else "FAIL"
-                lines.append(f"  [{status}] {c.get('name', '')}")
-                if not c.get("passed") and c.get("message"):
-                    lines.append(f"         {c.get('message', '')}")
-            chunks.append("\n".join(lines))
-        else:
-            chunks.append("STDOUT:\n" + out)
+        return out
     if se:
-        chunks.append("STDERR:\n" + se)
-    return "\n\n".join(chunks).strip() or "(no output)"
+        return se
+    if err:
+        return err
+    return "(no output)"
 
 
 def _persist_batch_run(
@@ -506,7 +505,10 @@ def run_checker_on_model(project_id: str):
                 [sys.executable, checker_path, model_path],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=_PER_STUDENT_TIMEOUT_SEC,
+                env=_checker_subprocess_env(),
             )
     except subprocess.TimeoutExpired:
         return jsonify({
@@ -630,7 +632,10 @@ def run_auto_check(project_id: str):
                     cmd,
                     capture_output=True,
                     text=True,
+                    encoding="utf-8",
+                    errors="replace",
                     timeout=_PER_STUDENT_TIMEOUT_SEC,
+                    env=_checker_subprocess_env(),
                 )
                 results.append(
                     {

@@ -1,16 +1,11 @@
-from flask import Blueprint, jsonify, render_template
+from flask import Blueprint, jsonify, redirect, url_for
 
 bp = Blueprint("main", __name__)
 
 
 @bp.route("/")
 def index():
-    return render_template("projects.html")
-
-
-@bp.route("/grade")
-def grade_page():
-    return render_template("grade.html")
+    return redirect(url_for("projects.projects_page"))
 
 
 @bp.route("/healthz")

@@ -1,4 +1,4 @@
-"""SQLite persistence for grading and automatic-check sessions."""
+"""SQLite persistence for project and grading sessions."""
 
 import json
 import os
@@ -10,9 +10,9 @@ _project_root = os.path.dirname(_pkg_dir)
 _data_dir = os.environ.get("CHECKMATE_DATA_DIR", "").strip()
 if _data_dir:
     os.makedirs(_data_dir, exist_ok=True)
-    DB_PATH = os.path.join(_data_dir, "grading_sessions.db")
+    DB_PATH = os.path.join(_data_dir, "data.db")
 else:
-    DB_PATH = os.path.join(_project_root, "grading_sessions.db")
+    DB_PATH = os.path.join(_project_root, "data.db")
 
 
 def _db():
@@ -23,18 +23,10 @@ def _db():
 
 def init_db() -> None:
     with _db() as conn:
+        conn.execute("DROP TABLE IF EXISTS automatic_check_sessions")
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS grading_sessions (
-                id TEXT PRIMARY KEY,
-                data TEXT NOT NULL,
-                created_at TEXT DEFAULT (datetime('now'))
-            )
-            """
-        )
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS automatic_check_sessions (
                 id TEXT PRIMARY KEY,
                 data TEXT NOT NULL,
                 created_at TEXT DEFAULT (datetime('now'))
@@ -129,29 +121,6 @@ def list_grading_sessions() -> list[dict[str, Any]]:
             }
         )
     return summaries
-
-
-def save_automatic_check_session(session_id: str, payload: dict) -> None:
-    blob = json.dumps(payload, ensure_ascii=False)
-    with _db() as conn:
-        conn.execute(
-            "INSERT OR REPLACE INTO automatic_check_sessions (id, data) VALUES (?, ?)",
-            (session_id, blob),
-        )
-        conn.commit()
-
-
-def load_automatic_check_session(session_id: str) -> Optional[dict[str, Any]]:
-    if not session_id:
-        return None
-    with _db() as conn:
-        row = conn.execute(
-            "SELECT data FROM automatic_check_sessions WHERE id = ?",
-            (session_id,),
-        ).fetchone()
-    if not row:
-        return None
-    return json.loads(row["data"])
 
 
 def save_batch_run_session(batch_id: str, payload: dict) -> None:

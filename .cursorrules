@@ -3,14 +3,13 @@
 ## Overview
 - Small Flask web app for grading multiple student Python submissions with Google Gemini.
 - Application code lives in the Python package `app/` (not a single `app.py` at repo root).
-- UI is server-rendered via Jinja templates in `templates/`.
+- UI is server-rendered via Jinja templates in `templates/`, centered on a projects/workspace UX.
 
 ## Tech Stack
 - Python 3
 - Flask (`flask>=3.0.0`)
 - Requests (`requests>=2.31.0`)
 - Frontend: plain HTML/CSS/JS in Jinja templates
-- Syntax highlighting in results view via CDN `highlight.js`
 
 ## Entry Point And Runtime
 - Flask factory: `create_app()` in `app/__init__.py`; default instance `app` for WSGI (`gunicorn app:app`).
@@ -19,27 +18,25 @@
 
 ## Package Layout (`app/`)
 - `__init__.py` — `create_app()`, registers blueprints, sets `template_folder` to repo `templates/`.
-- `db.py` — SQLite (`grading_sessions.db` at project root unless `CHECKMATE_DATA_DIR` is set), `init_db()` on import.
+- `db.py` — SQLite (`data.db` at project root unless `CHECKMATE_DATA_DIR` is set), `init_db()` on import.
 - `gemini_client.py` — `SUPPORTED_MODELS`, `REVIEW_SCHEMA`, `call_gemini`, `generate_auto_checker_prompt`, `normalize_checker_script_response`, `review_student_code`.
 - `utils.py` — `parse_student_identity`.
 - Blueprints:
-  - `routes_main` (`main`) — `GET /`, `GET /grade`.
-  - `routes_auto` (`auto`) — `GET /auto`, `POST /auto/generate`, `POST /auto/save/<id>`, `POST /auto/project-run/<id>`.
-  - `routes_grade` (`grading`) — `POST /grade/init`, `POST /grade/<session_id>/student`.
-  - `routes_sessions` (`sessions`) — `GET /results/<session_id>`, `GET /sessions`, `GET /sessions/<id>/open`.
+  - `routes_main` (`main`) — `GET /`, `GET /healthz`.
+  - `routes_projects` (`projects`) — project list/create/workspace plus checker and annotate endpoints.
 
-Jinja `url_for` uses blueprint endpoints, e.g. `main.index`, `grading.grade_init`, `auto.auto_generate`, `sessions.results`.
+Jinja `url_for` uses blueprint endpoints, mainly `main.index` and `projects.*`.
 
 ## High-Level Flow
-1. User opens `/` (main menu).
-2. From the menu, user opens `/grade` and uploads: Gemini API key, assignment markdown, model solution `.py`, one or more student `.py` files.
-3. `POST /grade/init` saves assignment + model + API settings to a new SQLite session (empty `results`).
-4. For each student file, the browser calls `POST /grade/<session_id>/student` (one file per request). Each call grades via Gemini, merges into `results`, and persists.
-5. When all files finish, the browser navigates to `/results/<session_id>`.
+1. User opens `/` and reaches the projects hub UI.
+2. User opens an existing project (or creates one via `POST /projects`).
+3. In workspace (`/projects/<id>`), user uploads assignment/model/student sources and optionally generates or edits checker code.
+4. Workspace actions (`/projects/<id>/run/check` and `/projects/<id>/run/annotate`) execute validation and annotation, then persist merged results.
+5. Client refreshes workspace data via `/projects/<id>/data` and renders inline results.
 
 ## Data And State
-- Persistent: `grading_sessions.db` and automatic-check rows (see `app/db.py`).
-- No Flask signed-session cookies: the active run is identified by the URL path.
+- Persistent: `projects`, `project_source_sets`, `batch_run_sessions`, and `grading_sessions` tables in `data.db` (see `app/db.py`).
+- No Flask signed-session cookies; state is persisted in SQLite and referenced by project/session IDs.
 
 ## Conventions And Assumptions
 - Student filename convention expected: `projectName_studentID.py` (split on last underscore).
@@ -48,8 +45,8 @@ Jinja `url_for` uses blueprint endpoints, e.g. `main.index`, `grading.grade_init
 - Comments returned to students are Hebrew; internal description text is English.
 
 ## Known Risks / Caveats
-- No authentication; anyone with `/results/<uuid>` can view that run if they guess or obtain the id.
-- API key may be stored inside the saved session JSON.
+- No authentication; app routes are publicly accessible if exposed.
+- API keys can still be persisted in saved payloads if sent from the client.
 - SQLite DB grows with every run unless pruned.
 - Direct dependency on external Gemini API availability and schema adherence.
 
@@ -57,4 +54,3 @@ Jinja `url_for` uses blueprint endpoints, e.g. `main.index`, `grading.grade_init
 - Stop persisting API keys in session JSON; use server env or per-request entry only.
 - Add request retry/backoff and clearer Gemini error surfacing in UI.
 - Add tests for prompt construction, annotation validation, and DB helpers.
-- Optional: restore a reusable comment pool (`comment_pool.json`) and `GET /pool` if product needs it.

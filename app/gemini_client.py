@@ -146,10 +146,10 @@ EXECUTION REQUIREMENTS
     * crashes
     * programs that never terminate (use a timeout).
 
-CHECKMATE REPORTER — include this block VERBATIM at the very top of your checker script (after any module docstring):
+CHECK MATE REPORTER — include this block VERBATIM at the very top of your checker script (after any module docstring):
 
 ```python
-# ── CheckMate reporter (do not modify) ──────────────────────────────────────
+# ── Check Mate reporter (do not modify) ──────────────────────────────────────
 import json as _json, sys as _sys
 
 class _Reporter:
@@ -167,7 +167,7 @@ class _Reporter:
         _sys.exit(0 if _p == len(self._checks) else 1)
 
 reporter = _Reporter()
-# ── End CheckMate reporter ───────────────────────────────────────────────────
+# ── End Check Mate reporter ───────────────────────────────────────────────────
 ```
 
 OUTPUT FORMAT

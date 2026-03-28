@@ -68,7 +68,7 @@ def _normalize_source_filename(raw: Any) -> str:
 
 
 def _try_parse_checkmate_result(stdout: str) -> Optional[dict[str, Any]]:
-    """Return parsed CheckMate JSON result if stdout matches the protocol, else None."""
+    """Return parsed Check Mate JSON result if stdout matches the protocol, else None."""
     if not stdout:
         return None
     try:

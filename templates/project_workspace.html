@@ -1362,7 +1362,7 @@
       if (!s.check) {
         checkDiv.innerHTML = `<div class="ws-no-data">No check run yet. Click "Run check" to check run this source.</div>`;
       } else if (s.check.check_cases && s.check.check_cases.length > 0) {
-        // Structured CheckMate result — render test-case cards
+        // Structured Check Mate result — render test-case cards
         const passed = s.check.passed ?? s.check.check_cases.filter(t => t.passed).length;
         const total  = s.check.total  ?? s.check.check_cases.length;
         const allOk  = passed === total;
@@ -2088,7 +2088,7 @@
 <body>
   <header class="pdf-header">
     <div class="pdf-meta">
-      <div class="app-name">CheckMate</div>
+      <div class="app-name">Check Mate</div>
       <div class="project-name">${e(PROJECT_NAME)}</div>
       ${ASSIGNMENT_NAME ? `<div class="assign-name">${e(ASSIGNMENT_NAME)}</div>` : ''}
     </div>

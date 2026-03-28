@@ -2,6 +2,20 @@
 
 This project is deployed as a single Docker container running Flask behind Gunicorn.
 
+## Fresh machine one-liner
+
+If the repository is not cloned yet, run:
+
+```bash
+git clone https://github.com/itayvak/checkmate.git checkmate && cd checkmate && chmod +x deploy.sh && ./deploy.sh
+```
+
+Example with explicit options:
+
+```bash
+git clone https://github.com/itayvak/checkmate.git checkmate && cd checkmate && chmod +x deploy.sh && ./deploy.sh --image_name checkmate --port 5000 --data_dir /opt/checkmate-data
+```
+
 ## 1) Build the image
 
 ```bash

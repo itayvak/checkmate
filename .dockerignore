@@ -2,6 +2,7 @@
 .cursor
 .cursorrules
 __pycache__
+app/__pycache__
 *.py[cod]
 .pytest_cache
 .mypy_cache

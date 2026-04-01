@@ -10,6 +10,9 @@ from typing import Any, Optional
 from flask import Blueprint, jsonify, redirect, render_template, request, url_for
 
 from .db import (
+    create_project_comment,
+    delete_project_comment,
+    list_project_comments,
     load_batch_run_session,
     load_grading_session,
     load_project,
@@ -19,6 +22,7 @@ from .db import (
     save_project,
     save_project_source_set,
     list_projects,
+    update_project_comment,
     update_project_checker,
 )
 from .gemini_client import (
@@ -287,9 +291,222 @@ def project_workspace_data(project_id: str):
             "assignment_name": project.get("assignment_name") or "",
             "model_solution_name": project.get("model_solution_name") or "",
             "checker_script": project.get("checker_script") or "",
+            "comment_library": list_project_comments(project_id),
         },
         "students": students,
     })
+
+
+@bp.get("/projects/<project_id>/comments")
+def project_comments_list(project_id: str):
+    if not load_project(project_id):
+        return jsonify({"ok": False, "error": "Unknown project id."}), 404
+    return jsonify({"ok": True, "comments": list_project_comments(project_id)})
+
+
+@bp.post("/projects/<project_id>/comments")
+def project_comments_create(project_id: str):
+    if not load_project(project_id):
+        return jsonify({"ok": False, "error": "Unknown project id."}), 404
+
+    body = request.get_json(silent=True) if request.is_json else None
+    message = (request.form.get("message") or (body.get("message") if isinstance(body, dict) else "") or "").strip()
+    teacher_text = (request.form.get("teacher_text") or (body.get("teacher_text") if isinstance(body, dict) else "") or "").strip()
+
+    try:
+        created = create_project_comment(project_id, message=message, teacher_text=teacher_text, key=None)
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    return jsonify({"ok": True, "comment": created})
+
+
+@bp.post("/projects/<project_id>/comments/<comment_id>")
+def project_comments_update(project_id: str, comment_id: str):
+    if not load_project(project_id):
+        return jsonify({"ok": False, "error": "Unknown project id."}), 404
+
+    body = request.get_json(silent=True) if request.is_json else None
+    message = request.form.get("message")
+    teacher_text = request.form.get("teacher_text")
+
+    if isinstance(body, dict):
+        if message is None and "message" in body:
+            message = body.get("message")
+        if teacher_text is None and "teacher_text" in body:
+            teacher_text = body.get("teacher_text")
+
+    try:
+        updated = update_project_comment(
+            comment_id,
+            message=message if message is None else str(message),
+            teacher_text=teacher_text if teacher_text is None else str(teacher_text),
+            key=None,
+        )
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    if not updated or updated.get("project_id") != project_id:
+        return jsonify({"ok": False, "error": "Comment not found for this project."}), 404
+    return jsonify({"ok": True, "comment": updated})
+
+
+@bp.post("/projects/<project_id>/comments/<comment_id>/delete")
+def project_comments_delete(project_id: str, comment_id: str):
+    if not load_project(project_id):
+        return jsonify({"ok": False, "error": "Unknown project id."}), 404
+    # Ensure the comment belongs to this project before deleting
+    lib = list_project_comments(project_id)
+    if not any(isinstance(c, dict) and str(c.get("id") or "") == comment_id for c in lib):
+        return jsonify({"ok": False, "error": "Comment not found for this project."}), 404
+    ok = delete_project_comment(comment_id)
+    if not ok:
+        return jsonify({"ok": False, "error": "Comment could not be deleted."}), 400
+    return jsonify({"ok": True})
+
+
+@bp.post("/projects/<project_id>/annotations/delete")
+def delete_one_annotation(project_id: str):
+    project = load_project(project_id)
+    if not project:
+        return jsonify({"ok": False, "error": "Unknown project id."}), 404
+
+    grading_id = (project.get("last_grading_session_id") or "").strip()
+    if not grading_id:
+        return jsonify({"ok": False, "error": "No grading session found for this project."}), 400
+
+    only_fn = (request.form.get("only_filename") or "").strip()
+    line_raw = (request.form.get("line") or "").strip()
+    if not only_fn or not line_raw:
+        return jsonify({"ok": False, "error": "Missing only_filename or line."}), 400
+    try:
+        line = int(line_raw)
+    except ValueError:
+        return jsonify({"ok": False, "error": "Invalid line (must be an integer)."}), 400
+    if line <= 0:
+        return jsonify({"ok": False, "error": "Invalid line (must be > 0)."}), 400
+
+    target_fn = os.path.basename(only_fn)
+    gs = load_grading_session(grading_id) or {}
+    results = gs.get("results")
+    if not isinstance(results, dict) or not results:
+        return jsonify({"ok": False, "error": "No grading results found."}), 400
+
+    changed = False
+    updated_item: Optional[dict[str, Any]] = None
+    for sid, item in results.items():
+        if not isinstance(item, dict):
+            continue
+        fn = os.path.basename(str(item.get("filename") or ""))
+        if fn != target_fn:
+            continue
+        anns = item.get("annotations")
+        if not isinstance(anns, list):
+            anns = []
+        before = len(anns)
+        kept: list[Any] = []
+        for a in anns:
+            if isinstance(a, dict) and a.get("line") == line:
+                continue
+            kept.append(a)
+        if len(kept) != before:
+            item["annotations"] = kept
+            results[sid] = item
+            changed = True
+        updated_item = item
+        break
+
+    if not changed:
+        return jsonify({"ok": False, "error": "Annotation not found for that file/line."}), 404
+
+    gs["results"] = results
+    try:
+        save_grading_session(grading_id, gs)
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"Could not save grading session: {e}"}), 500
+
+    out = {
+        "grade": (updated_item or {}).get("grade") or "",
+        "summary": (updated_item or {}).get("summary") or "",
+        "annotations": (updated_item or {}).get("annotations") or [],
+    }
+    return jsonify({"ok": True, "annotation": out})
+
+
+@bp.post("/projects/<project_id>/annotations/add")
+def add_one_annotation(project_id: str):
+    project = load_project(project_id)
+    if not project:
+        return jsonify({"ok": False, "error": "Unknown project id."}), 404
+
+    grading_id = (project.get("last_grading_session_id") or "").strip()
+    if not grading_id:
+        return jsonify({"ok": False, "error": "No grading session found for this project."}), 400
+
+    only_fn = (request.form.get("only_filename") or "").strip()
+    line_raw = (request.form.get("line") or "").strip()
+    comment_id = (request.form.get("comment_id") or "").strip()
+    if not only_fn or not line_raw or not comment_id:
+        return jsonify({"ok": False, "error": "Missing only_filename, line, or comment_id."}), 400
+    try:
+        line = int(line_raw)
+    except ValueError:
+        return jsonify({"ok": False, "error": "Invalid line (must be an integer)."}), 400
+    if line <= 0:
+        return jsonify({"ok": False, "error": "Invalid line (must be > 0)."}), 400
+
+    # Validate the comment id exists in this project's library
+    lib = list_project_comments(project_id)
+    if not any(isinstance(c, dict) and str(c.get("id") or "") == comment_id for c in lib):
+        return jsonify({"ok": False, "error": "Unknown comment_id for this project."}), 400
+
+    target_fn = os.path.basename(only_fn)
+    gs = load_grading_session(grading_id) or {}
+    results = gs.get("results")
+    if not isinstance(results, dict) or not results:
+        return jsonify({"ok": False, "error": "No grading results found."}), 400
+
+    changed = False
+    updated_item: Optional[dict[str, Any]] = None
+    for sid, item in results.items():
+        if not isinstance(item, dict):
+            continue
+        fn = os.path.basename(str(item.get("filename") or ""))
+        if fn != target_fn:
+            continue
+
+        anns = item.get("annotations")
+        if not isinstance(anns, list):
+            anns = []
+
+        # Replace any existing annotation on that line (keeps 1 annotation per line)
+        kept: list[Any] = []
+        for a in anns:
+            if isinstance(a, dict) and a.get("line") == line:
+                continue
+            kept.append(a)
+        kept.append({"line": line, "comment_id": comment_id})
+        kept.sort(key=lambda x: x.get("line") if isinstance(x, dict) else 10**9)
+
+        item["annotations"] = kept
+        results[sid] = item
+        changed = True
+        updated_item = item
+        break
+
+    if not changed:
+        return jsonify({"ok": False, "error": "Student not found in grading results."}), 404
+
+    gs["results"] = results
+    try:
+        save_grading_session(grading_id, gs)
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"Could not save grading session: {e}"}), 500
+
+    out = {
+        "grade": (updated_item or {}).get("grade") or "",
+        "summary": (updated_item or {}).get("summary") or "",
+        "annotations": (updated_item or {}).get("annotations") or [],
+    }
+    return jsonify({"ok": True, "annotation": out})
 
 
 @bp.post("/projects/<project_id>/sources/upload")
@@ -591,6 +808,21 @@ def update_project_files(project_id: str):
     )
 
 
+@bp.post("/projects/<project_id>/rename")
+def rename_project(project_id: str):
+    project = load_project(project_id)
+    if not project:
+        return jsonify({"ok": False, "error": "Unknown project id."}), 404
+
+    project_name = _normalize_title(request.form.get("project_name", ""))
+    if not project_name:
+        return jsonify({"ok": False, "error": "Project name is required."}), 400
+
+    project["name"] = project_name
+    save_project(project_id, project)
+    return jsonify({"ok": True, "project_name": project_name})
+
+
 @bp.post("/projects/<project_id>/run/check")
 def run_auto_check(project_id: str):
     project = load_project(project_id)
@@ -789,6 +1021,19 @@ def run_auto_annotate(project_id: str):
     last_batch_id = (project.get("last_batch_id") or "").strip()
     batch_payload = load_batch_run_session(last_batch_id) if last_batch_id else None
 
+    # Load per-project comment library
+    comment_library = list_project_comments(project_id)
+    lib_by_id: dict[str, dict[str, Any]] = {str(c.get("id")): c for c in comment_library if isinstance(c, dict) and c.get("id")}
+    # Index by normalized message for quick reuse/dedupe
+    lib_id_by_message: dict[str, str] = {}
+    for c in comment_library:
+        if not isinstance(c, dict):
+            continue
+        cid = str(c.get("id") or "").strip()
+        msg = str(c.get("message") or "").strip()
+        if cid and msg:
+            lib_id_by_message[msg] = cid
+
     for row in rows_to_run:
         if not isinstance(row, dict):
             continue
@@ -809,9 +1054,51 @@ def run_auto_annotate(project_id: str):
                 student_filename=filename,
                 auto_check_output=auto_check_output,
                 extra_instructions=extra_instructions,
+                comment_library=comment_library,
             )
         except Exception as e:
             review = {"grade": "fail", "summary": f"Processing error: {e}", "annotations": []}
+
+        # Resolve annotations to comment_id references only (creating new library entries if needed)
+        resolved_annotations: list[dict[str, Any]] = []
+        for ann in (review.get("annotations") or []):
+            if not isinstance(ann, dict):
+                continue
+            line = ann.get("line")
+            if not isinstance(line, int) or line <= 0:
+                continue
+
+            cid = ann.get("comment_id")
+            if isinstance(cid, str) and cid.strip():
+                cid = cid.strip()
+                if cid in lib_by_id:
+                    resolved_annotations.append({"line": line, "comment_id": cid})
+                continue
+
+            nc = ann.get("new_comment")
+            if isinstance(nc, dict):
+                msg = str(nc.get("message") or "").strip()
+                if not msg:
+                    continue
+                # If an identical message already exists, reuse it
+                existing_id = lib_id_by_message.get(msg)
+                if existing_id:
+                    resolved_annotations.append({"line": line, "comment_id": existing_id})
+                    continue
+                teacher_text = str(nc.get("teacher_text") or "").strip()
+                try:
+                    created = create_project_comment(project_id, message=msg, teacher_text=teacher_text, key=None)
+                except Exception:
+                    # If key uniqueness fails or insert fails, fallback to message-only dedupe on refresh
+                    created = create_project_comment(project_id, message=msg, teacher_text=teacher_text, key=None)
+                new_id = str(created.get("id") or "").strip()
+                if new_id:
+                    comment_library.append(created)
+                    lib_by_id[new_id] = created
+                    lib_id_by_message[msg] = new_id
+                    resolved_annotations.append({"line": line, "comment_id": new_id})
+
+        review["annotations"] = resolved_annotations
 
         item = {
             "filename": filename,

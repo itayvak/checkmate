@@ -25,9 +25,16 @@ REVIEW_SCHEMA = {
                 '"fail" otherwise.'
             ),
         },
-        "summary": {
+        "improvement": {
             "type": "string",
-            "description": "1-2 sentences in Hebrew summarising student performance",
+            "description": (
+                "Hebrew guidance for the student about what to improve next time. "
+                "1-2 short sentences. Prefer general advice, but you MAY reference a short code snippet (1-2 lines) "
+                "if it makes the guidance clearer. "
+                "Do NOT mention pass/fail. Do NOT mention line numbers. "
+                "You MAY mention a module/function ONLY if it directly caused the failure. "
+                "Do NOT start with 'חניך יקר,'. You MAY start with 'להבא,' but it's optional."
+            ),
         },
         "annotations": {
             "type": "array",
@@ -36,14 +43,62 @@ REVIEW_SCHEMA = {
                 "type": "object",
                 "properties": {
                     "line": {"type": "integer", "description": "1-based line number"},
-                    "comment": {"type": "string", "description": "Hebrew comment text"},
+                    "comment_id": {"type": "string", "description": "ID of a comment from the provided comment library"},
+                    "new_comment": {
+                        "type": "object",
+                        "description": "Create a new comment in the project's comment library when none match",
+                        "properties": {
+                            "message": {"type": "string", "description": "Hebrew comment text to store in the library"},
+                            "teacher_text": {"type": "string", "description": "Optional teacher-only explanation in Hebrew (not shown to students)"},
+                        },
+                        "required": ["message"],
+                    },
                 },
-                "required": ["line", "comment"],
+                "required": ["line"],
+                "oneOf": [
+                    {"required": ["comment_id"]},
+                    {"required": ["new_comment"]},
+                ],
             },
         },
     },
-    "required": ["grade", "summary", "annotations"],
+    "required": ["grade", "improvement", "annotations"],
 }
+
+def _normalize_student_improvement(improvement: Any) -> str:
+    if not isinstance(improvement, str):
+        return ""
+    s = improvement.strip()
+    # Keep it compact, but allow a snippet on a new line if provided.
+    s = re.sub(r"\n{3,}", "\n\n", s).strip()
+    # Collapse excessive internal whitespace (without destroying intentional newlines).
+    s = re.sub(r"[ \t]{2,}", " ", s)
+    # Soft length cap to keep the UI readable.
+    if len(s) > 420:
+        s = s[:420].rstrip() + "…"
+    return s
+
+
+def _compose_student_summary(grade: str, improvement: str) -> str:
+    """
+    Compose the UI-facing, two-paragraph Hebrew format:
+    1) Pass/Fail statement (rigid)
+    2) Blank line
+    3) One general 'next time' suggestion (from AI or fallback)
+    """
+    base1 = (
+        "חניך יקר, הפתרון שלך עומד בדרישות המטלה."
+        if grade == "pass"
+        else "חניך יקר, הפתרון שלך לא עובר את דרישות המטלה."
+    )
+    base2 = "להבא, קרא שוב את דרישות המטלה, הרץ את הקוד ובדוק שהוא עומד בכל הדרישות לפני ההגשה."
+
+    imp = (improvement or "").strip()
+    if not imp:
+        return f"{base1}\n\n{base2}"
+    if not imp.startswith("להבא"):
+        imp = f"להבא, {imp.lstrip(' ,')}"
+    return f"{base1}\n\n{imp}"
 
 def normalize_checker_script_response(raw: str) -> str:
     """
@@ -335,6 +390,7 @@ def review_student_code(
     student_filename: str | None = None,
     auto_check_output: str | None = None,
     extra_instructions: str | None = None,
+    comment_library: list[dict[str, Any]] | None = None,
 ):
     lines = student_code.split("\n")
 
@@ -372,11 +428,37 @@ You MUST follow them exactly when grading and writing comments.
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 """ if extra else ""
 
+    lib = comment_library if isinstance(comment_library, list) else []
+    lib_rows: list[dict[str, str]] = []
+    for c in lib:
+        if not isinstance(c, dict):
+            continue
+        cid = str(c.get("id") or "").strip()
+        msg = str(c.get("message") or "").strip()
+        if not cid or not msg:
+            continue
+        lib_rows.append(
+            {
+                "id": cid,
+                "message": msg,
+            }
+        )
+    library_block = ""
+    if lib_rows:
+        library_block = f"""
+COMMENT LIBRARY (use these predefined comments when possible):
+The following list is a set of allowed comments. Prefer referencing an existing comment by its ID.
+Only create a new comment when none match the requirement you need to flag.
+
+{json.dumps(lib_rows, ensure_ascii=False)}
+"""
+
     prompt = f"""You are a **strict Python assignment evaluator** reviewing a single student submission.
 
 Your role is **not** to teach, refactor, optimize, or suggest improvements.
 Your role is ONLY to determine whether the student correctly implemented the assignment requirements.
 {extra_block}
+{library_block}
 I will provide you with:
     * The assignment description, a text given to the students describing what the student should implement in their code.
     * The model solution, the correct solution written by the class proffesor.
@@ -444,9 +526,22 @@ DO NOT COMMENT ON:
 
 COMMENT WRITING RULES:
 
-All comments MUST be written in **Hebrew only**.
+All comment messages MUST be written in **Hebrew only**.
 
-Each comment must:
+When you need to annotate a problem, you MUST do ONE of:
+
+1) Use an existing library entry by returning `comment_id` (preferred).
+2) If no library entry matches, return `new_comment` so the system can add it to the library, then reference it.
+
+If you create a new comment:
+- Keep it reusable across students in this project.
+- Avoid including student-specific names/values.
+
+Language requirements:
+- `new_comment.message` MUST be Hebrew.
+- If you provide `new_comment.teacher_text`, it MUST also be Hebrew.
+
+The comment message must:
 
 • Describe what MUST be done (instructional phrasing)
 • NOT describe what the student did wrong
@@ -479,6 +574,23 @@ Return ONLY the required structured JSON output.
 Do NOT include explanations outside the JSON.
 Do NOT include reasoning steps.
 Do NOT include additional commentary.
+
+STUDENT IMPROVEMENT RULES (field: "improvement"):
+Return 1–2 short sentences in Hebrew that tell the student what to focus on next time.
+
+How to choose what to say:
+- Look at whether the student's code actually ran (use the PRIOR AUTOMATED CHECKER OUTPUT if present: SyntaxError/tracebacks/timeouts are strong signals).
+- Look at the specific issues you are about to annotate (your own annotations in this same response).
+- Pick the 1-2 highest-impact actions that would most likely turn this into a pass next time.
+
+Constraints:
+- Do not mention pass/fail.
+- Do not mention line numbers.
+- Prefer general advice, but you MAY reference a short snippet (1–2 lines) from the student's code if it makes the guidance clearer.
+- You MAY mention a specific module/function ONLY if it is directly relevant to the failure (e.g., code doesn't run due to a SyntaxError or a missing import).
+- Do not mention the model solution.
+- Keep it friendly, short, and actionable.
+- If you start with "להבא," that's fine but not required.
 
 {auto_block}
 ----- START ASSIGNMENT DESCRIPTION --------------
@@ -531,21 +643,37 @@ Do NOT include additional commentary.
             grade = "fail"
     else:
         grade = "fail"
-    summary = obj.get("summary", "")
+    improvement = _normalize_student_improvement(obj.get("improvement", ""))
+    summary = _compose_student_summary(grade, improvement)
 
     raw_anns = obj.get("annotations", [])
 
     valid_anns = []
     for i, ann in enumerate(raw_anns if isinstance(raw_anns, list) else []):
+        if not isinstance(ann, dict):
+            continue
         line_ok = isinstance(ann.get("line"), int) and 1 <= ann.get("line", 0) <= len(lines)
-        comment_ok = isinstance(ann.get("comment"), str) and len(ann.get("comment", "")) > 0
-        if line_ok and comment_ok:
-            valid_anns.append(
-                {
-                    "line": ann.get("line"),
-                    "comment": ann.get("comment"),
-                }
-            )
+        if not line_ok:
+            continue
+
+        cid = ann.get("comment_id")
+        if isinstance(cid, str) and cid.strip():
+            valid_anns.append({"line": ann.get("line"), "comment_id": cid.strip()})
+            continue
+
+        nc = ann.get("new_comment")
+        if isinstance(nc, dict):
+            msg = nc.get("message")
+            if isinstance(msg, str) and msg.strip():
+                valid_anns.append(
+                    {
+                        "line": ann.get("line"),
+                        "new_comment": {
+                            "message": msg.strip(),
+                            "teacher_text": str(nc.get("teacher_text") or "").strip(),
+                        },
+                    }
+                )
 
     return {
         "grade": grade,

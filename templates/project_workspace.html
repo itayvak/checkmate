@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+  <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" sizes="any">
   <style>
     /* ── Root layout ─────────────────────────────────────────────────────────── */
     html, body {
@@ -210,6 +211,14 @@
       background: rgba(164,201,255,0.09);
       border-left-color: var(--color-primary);
     }
+    .ws-item.he {
+      direction: rtl;
+      border-left: none;
+      border-right: 2px solid transparent;
+    }
+    .ws-item.he.active {
+      border-right-color: var(--color-primary);
+    }
     .ws-item-info { flex: 1; min-width: 0; }
     .ws-item-fn {
       font-family: var(--font-mono);
@@ -218,6 +227,10 @@
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+    .ws-item-fn.he {
+      direction: rtl;
+      text-align: right;
     }
     .ws-item-grade {
       font-size: 0.65rem;
@@ -343,6 +356,20 @@
       flex: 1;
       min-height: 0;
     }
+    .code-wrap-shell {
+      position: relative;
+      min-height: 0;
+      flex: 1;
+      display: flex;
+    }
+    .code-wrap-shell .cl-table { flex: 1; }
+    .fab-add-ann {
+      position: absolute;
+      right: 14px;
+      bottom: 14px;
+      z-index: 5;
+      box-shadow: 0 10px 22px rgba(0, 0, 0, 0.22);
+    }
     .ws-check-dock {
       flex-shrink: 0;
       border: 1px solid var(--color-outline-variant);
@@ -419,6 +446,10 @@
     .cl-row:hover { background: rgba(255,255,255,0.04); }
     .cl-row-ann   { background: rgba(255,180,171,0.08); border-left-color: rgba(255,180,171,0.5); }
     .cl-row-ann.cl-row-clickable { cursor: pointer; }
+    .cl-row.cl-row-selected {
+      background: rgba(255, 255, 255, 0.08);
+      border-left-color: rgba(255, 255, 255, 0.35);
+    }
     .cl-row-ann.cl-row-selected {
       background: rgba(255, 180, 171, 0.18);
       border-left-color: rgba(255, 180, 171, 0.95);
@@ -473,7 +504,8 @@
     .cl-ann-meta {
       font-size: 0.64rem;
       color: var(--color-bad);
-      margin-bottom: 0.28rem;
+      height: 26px;
+      margin-bottom: 0.35rem;
     }
     .cl-ann-txt {
       font-size: 0.75rem;
@@ -484,6 +516,26 @@
       white-space: normal;
       word-break: break-word;
     }
+    .cl-ann-del {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: rgba(43, 47, 56, 0.96);
+      color: var(--color-bad);
+      border: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      opacity: 0.85;
+      transition: opacity 0.18s, border-color 0.18s, background 0.18s;
+    }
+    .cl-ann-card:hover .cl-ann-del { opacity: 1; }
+    .cl-ann-del:hover {
+      border-color: rgba(255, 180, 171, 0.95);
+      background: rgba(56, 61, 72, 0.98);
+    }
+    .cl-ann-del svg { width: 14px; height: 14px; }
     .ws-check-hd { display: flex; align-items: center; gap: 0.55rem; margin-bottom: 0.6rem; }
     .ws-out {
       background: var(--color-surface-container-lowest);
@@ -621,7 +673,9 @@
       line-height: 1.55;
       color: var(--color-on-surface);
       direction: rtl;
+      white-space: pre-line;
       margin-bottom: 0.65rem;
+      line-height: 1;
     }
     /* ── Test-case cards ─────────────────────────────────────────────────────── */
     .ws-tc-score { margin-bottom: 0.65rem; }
@@ -755,11 +809,29 @@
       outline: none;
       transition: border-color 0.18s;
     }
+    .fm-input.he {
+      direction: rtl;
+    }
+    .fm-input.he::placeholder {
+      direction: rtl;
+    }
     .fm-input:focus { border-color: var(--color-primary); }
     .fm-actions { display: flex; gap: 0.6rem; margin-top: 1rem; flex-wrap: wrap; }
     .fm-error { font-size: 0.78rem; color: var(--color-bad); margin-top: 0.5rem; display: none; }
     .modal-dialog { max-width: 500px; }
     .modal-dialog.wide { max-width: 660px; }
+    .fm-link,
+    .fm-link:visited {
+      color: var(--color-primary);
+    }
+    .fm-link:hover {
+      text-decoration: underline;
+    }
+    .fm-link:focus-visible {
+      outline: 2px solid color-mix(in srgb, var(--color-primary) 55%, transparent);
+      outline-offset: 2px;
+      border-radius: 4px;
+    }
     .checker-modal-head {
       display: flex;
       align-items: center;
@@ -790,6 +862,7 @@
       color: var(--color-on-surface);
       background: var(--color-surface-container);
     }
+
   </style>
 </head>
 <body>
@@ -801,7 +874,7 @@
       <span>Projects</span>
     </a>
     <div class="ws-bar-divider"></div>
-    <div class="ws-bar-title">{{ project_name }}</div>
+    <div class="ws-bar-title" id="workspaceProjectTitle">{{ project_name }}</div>
     <div class="ws-bar-actions">
       <button class="button outline" id="checkerBtn">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
@@ -817,6 +890,15 @@
       </button>
       <button class="button outline" id="settingsBtn" title="API key &amp; model" aria-label="Settings">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.65 1.65 0 0 0 15 19.4a1.65 1.65 0 0 0-1 .6 1.65 1.65 0 0 0-.33 1V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-.33-1 1.65 1.65 0 0 0-1-.6 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-.6-1 1.65 1.65 0 0 0-1-.33H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1-.33 1.65 1.65 0 0 0 .6-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-.6 1.65 1.65 0 0 0 .33-1V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 .33 1 1.65 1.65 0 0 0 1 .6 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.25.33.46.7.6 1 .13.31.2.65.2 1s-.07.69-.2 1c-.14.3-.35.67-.6 1z"/></svg>
+      </button>
+      <button class="button outline" id="commentLibraryBtn" title="Comment library" aria-label="Comment library">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20"/>
+          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+          <path d="M8 7h8"/>
+          <path d="M8 11h8"/>
+          <path d="M8 15h6"/>
+        </svg>
       </button>
     </div>
   </div>
@@ -877,6 +959,10 @@
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z"/></svg>
             <span>Annotate this source</span>
           </button>
+          <button class="button outline" id="detailAddAnnotationBtn" style="font-size:0.78rem;padding:0.25rem 0.75rem;display:inline-flex;align-items:center;gap:0.3rem;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            <span>Add annotation</span>
+          </button>
         </div>
 
         <div class="ws-detail-layout">
@@ -886,7 +972,13 @@
           </section>
 
           <section class="ws-detail-source">
-            <div id="detailCodeWrap" class="cl-table"></div>
+            <div class="code-wrap-shell">
+              <div id="detailCodeWrap" class="cl-table"></div>
+              <button class="button primary fab-add-ann" id="fabAddAnnotationBtn" type="button" style="display:none;" title="Add annotation" aria-label="Add annotation">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                <span style="margin-left:0.35rem;">Add annotation</span>
+              </button>
+            </div>
           </section>
 
           <details class="ws-check-dock" id="detailCheckDock">
@@ -985,7 +1077,10 @@
     <div class="modal-dialog" role="dialog" aria-modal="true">
       <div class="modal-title" style="margin-bottom:0.9rem;">Workspace settings</div>
       <label class="fm-label" for="apiKeyInput">Gemini API key</label>
-      <input class="fm-input" type="password" id="apiKeyInput" placeholder="AIza…" autocomplete="off" />
+      <input class="fm-input" type="password" id="apiKeyInput" autocomplete="off" />
+      <div style="margin-top:0.35rem;font-size:0.72rem;color:var(--color-on-surface-variant);">
+        Need a key? <a class="fm-link" href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer">Open Gemini API keys</a>
+      </div>
       <label class="fm-label" for="modelSelect">Model</label>
       <select class="fm-input" id="modelSelect">
         <option value="gemini-2.5-flash-lite">gemini-2.5-flash-lite</option>
@@ -994,6 +1089,8 @@
         <option value="gemini-3-flash-preview">gemini-3-flash-preview</option>
         <option value="gemini-3.1-pro-preview">gemini-3.1-pro-preview</option>
       </select>
+      <label class="fm-label" for="settingsProjectNameInput">Project name</label>
+      <input class="fm-input" type="text" id="settingsProjectNameInput" maxlength="200" autocomplete="off" />
       <div style="height:1px;background:var(--color-outline-variant);margin:0.95rem 0;"></div>
       <div style="font-size:0.72rem;color:var(--color-on-surface-variant);margin:-0.15rem 0 0.5rem;">
         Current assignment description: <span id="settingsAssignmentName" style="font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;"></span><br />
@@ -1011,11 +1108,74 @@
     </div>
   </div>
 
+  <!-- ── Comment library modal ──────────────────────────────────────────────── -->
+  <div class="modal-overlay" id="commentLibraryModal">
+    <div class="modal-dialog" role="dialog" aria-modal="true" style="max-width:860px;">
+      <div class="checker-modal-head">
+        <div class="modal-title">Comment library</div>
+        <button class="checker-modal-close" id="closeCommentLibraryBtn" type="button" aria-label="Close comment library dialog">×</button>
+      </div>
+      <div style="display:flex;gap:0.75rem;align-items:flex-start;">
+        <div style="flex:1;min-width:260px;">
+          <input class="fm-input" id="clSearchInput" placeholder="Search…" />
+          <div id="clList" style="margin-top:0.6rem;max-height:520px;overflow:auto;border:1px solid var(--color-outline-variant);border-radius:10px;"></div>
+          <div style="display:flex;gap:0.5rem;justify-content:flex-end;margin-top:0.6rem;">
+            <button class="button outline" id="clRefreshBtn" type="button">Refresh</button>
+            <button class="button primary" id="clNewBtn" type="button">New</button>
+          </div>
+        </div>
+        <div style="flex:2;min-width:320px;">
+          <div style="font-size:0.72rem;color:var(--color-on-surface-variant);margin-bottom:0.45rem;">
+            Comment ID: <span id="clIdLabel" style="font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;"></span>
+          </div>
+          <label class="fm-label" for="clMessageInput">Message</label>
+          <textarea class="fm-input he" id="clMessageInput" rows="6" style="resize:vertical;" placeholder="המרת קלט מוקדמת - יש לבדוק תחילה האם הוזן 'exit' לפני המרה ל־int כדי למנוע קריסה."></textarea>
+          <label class="fm-label" for="clTeacherTextInput">Teacher text (not shown to students)</label>
+          <textarea class="fm-input he" id="clTeacherTextInput" rows="3" style="resize:vertical;" placeholder="Explain why we use this comment, common student mistakes, what to look for…"></textarea>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:0.75rem;margin-top:0.55rem;">
+            <div style="display:flex;gap:0.5rem;">
+              <button class="button bad outline" id="clDeleteBtn" type="button">Delete</button>
+              <button class="button primary" id="clSaveBtn" type="button">Save</button>
+            </div>
+          </div>
+          <div class="fm-error" id="clError" style="margin-top:0.55rem;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Annotation picker modal (choose existing comment) ───────────────────── -->
+  <div class="modal-overlay" id="annotationPickerModal">
+    <div class="modal-dialog" role="dialog" aria-modal="true" style="max-width:720px;">
+      <div class="checker-modal-head">
+        <div class="modal-title">Add annotation</div>
+        <button class="checker-modal-close" id="closeAnnotationPickerBtn" type="button" aria-label="Close annotation picker dialog">×</button>
+      </div>
+      <div style="font-size:0.75rem;color:var(--color-on-surface-variant);margin-bottom:0.55rem;">
+        Choose a comment to attach to line <span id="apLineLabel"></span>.
+      </div>
+      <input class="fm-input" id="apSearchInput" placeholder="Search comments…" />
+      <div id="apList" style="margin-top:0.6rem;max-height:420px;overflow:auto;border:1px solid var(--color-outline-variant);border-radius:10px;"></div>
+      <div class="fm-error" id="apError" style="margin-top:0.55rem;"></div>
+    </div>
+  </div>
+
+  <script id="wsBoot" type="application/json">{{ {
+    "project_id": project_id,
+    "project_name": project_name,
+    "assignment_name": assignment_name,
+    "model_solution_name": model_solution_name
+  }|tojson }}</script>
+
   <script>
-    const PROJECT_ID           = {{ project_id|tojson }};
-    const PROJECT_NAME         = {{ project_name|tojson }};
-    let ASSIGNMENT_NAME        = {{ assignment_name|tojson }};
-    let MODEL_SOLUTION_NAME    = {{ model_solution_name|tojson }};
+    const BOOT = (() => {
+      try { return JSON.parse((document.getElementById('wsBoot')?.textContent || '').trim() || '{}'); }
+      catch (_) { return {}; }
+    })();
+    const PROJECT_ID           = BOOT.project_id || '';
+    let PROJECT_NAME           = BOOT.project_name || '';
+    let ASSIGNMENT_NAME        = BOOT.assignment_name || '';
+    let MODEL_SOLUTION_NAME    = BOOT.model_solution_name || '';
     const STORAGE_KEY          = 'checkmate.ws.settings';
 
     /* ── State ────────────────────────────────────────────────────────────────── */
@@ -1027,6 +1187,9 @@
       model:    'gemini-2.5-flash-lite',
       assignmentName: ASSIGNMENT_NAME || '',
       modelSolutionName: MODEL_SOLUTION_NAME || '',
+      commentLibrary: [],
+      selectedCommentId: null,
+      selectedLine: null,
     };
 
     /* ── Helpers ─────────────────────────────────────────────────────────────── */
@@ -1071,6 +1234,11 @@
       if (!res.ok || !json.ok)
         throw new Error(json.error || (json.errors && json.errors[0]) || 'Request failed.');
       return json;
+    }
+    function refreshProjectNameUi() {
+      const titleEl = document.getElementById('workspaceProjectTitle');
+      if (titleEl) titleEl.textContent = PROJECT_NAME || 'Untitled project';
+      document.title = `${PROJECT_NAME || 'Untitled project'} — Check Mate`;
     }
     function setCheckerScript(script) {
       const ta = document.getElementById('checkerTA');
@@ -1174,6 +1342,7 @@
       S.checker  = (json.project && json.project.checker_script) || '';
       S.assignmentName = (json.project && json.project.assignment_name) || S.assignmentName || '';
       S.modelSolutionName = (json.project && json.project.model_solution_name) || S.modelSolutionName || '';
+      S.commentLibrary = (json.project && json.project.comment_library) || [];
       ASSIGNMENT_NAME = S.assignmentName || ASSIGNMENT_NAME;
       MODEL_SOLUTION_NAME = S.modelSolutionName || MODEL_SOLUTION_NAME;
       setCheckerScript(S.checker);
@@ -1188,6 +1357,13 @@
         document.getElementById('emptyTitle').textContent = 'Upload source files to get started';
         document.getElementById('emptySub').textContent   = 'Use the "Upload source files" button below the list.';
       }
+    }
+
+    function commentMessageById(id) {
+      const cid = String(id || '').trim();
+      if (!cid) return '';
+      const row = (S.commentLibrary || []).find(c => String(c.id || '') === cid);
+      return row ? String(row.message || '') : '(deleted comment)';
     }
 
     function refreshSettingsFileNames() {
@@ -1258,6 +1434,7 @@
     /* ── Select a student ────────────────────────────────────────────────────── */
     function selectStudent(filename) {
       S.selected = filename;
+      S.selectedLine = null;
       document.querySelectorAll('.ws-item').forEach(
         el => el.classList.toggle('active', el.dataset.fn === filename)
       );
@@ -1312,12 +1489,20 @@
       document.getElementById('detailCheckOneBtn').onclick   = () => checkOneStudent(s.filename);
       document.getElementById('detailAnnotateOneBtn').onclick = () => annotateOneStudent(s.filename);
       document.getElementById('detailDeleteBtn').onclick      = () => deleteOneSource(s.filename);
+      document.getElementById('detailAddAnnotationBtn').style.display = 'none';
+      document.getElementById('fabAddAnnotationBtn').onclick = () => apOpen();
+      updateFabAddAnnotationVisibility();
 
       // Build annotation lookup: line number → comment
       const annMap = {};
       if (s.annotation) {
         (s.annotation.annotations || []).forEach(a => {
-          if (a.line != null) annMap[Number(a.line)] = a.comment || '';
+          if (a.line == null) return;
+          const ln = Number(a.line);
+          // Back-compat: allow old free-text payloads
+          const direct = a.comment != null ? String(a.comment || '') : '';
+          const viaLib = a.comment_id != null ? commentMessageById(a.comment_id) : '';
+          annMap[ln] = direct || viaLib || '';
         });
       }
 
@@ -1343,6 +1528,15 @@
           annCardsHtml +=
             `<div class="cl-ann-card" data-line="${ln}">` +
               `<div class="cl-ann-meta">Line ${ln}</div>` +
+              `<button class="cl-ann-del" type="button" title="Remove annotation" aria-label="Remove annotation" data-del-line="${ln}">` +
+                `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">` +
+                  `<polyline points="3 6 5 6 21 6"></polyline>` +
+                  `<path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>` +
+                  `<path d="M10 11v6"></path>` +
+                  `<path d="M14 11v6"></path>` +
+                  `<path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path>` +
+                `</svg>` +
+              `</button>` +
               `<div class="cl-ann-txt">${esc(ann)}</div>` +
             `</div>`;
         }
@@ -1354,6 +1548,7 @@
         `</div>`;
       positionCodeAnnotations();
       bindCodeAnnotationInteractions();
+      bindAnnotationDeleteButtons();
 
       // Check output
       const checkTitleEl = document.getElementById('detailCheckTitle');
@@ -1406,6 +1601,114 @@
       }
     }
 
+    async function deleteAnnotationForSelectedStudent(lineNum) {
+      const s = S.students.find(x => x.filename === S.selected);
+      if (!s) return;
+      showLoad(`Removing annotation (line ${lineNum})…`);
+      try {
+        const fd = new FormData();
+        fd.append('only_filename', s.filename);
+        fd.append('line', String(lineNum));
+        const json = await postForm(`/projects/${encodeURIComponent(PROJECT_ID)}/annotations/delete`, fd);
+        s.annotation = json.annotation || s.annotation;
+        renderCenter();
+        setStatus('Annotation removed.');
+      } catch (e) {
+        setStatus(e.message || 'Failed to remove annotation.', true);
+      } finally {
+        hideLoad();
+      }
+    }
+
+    function bindAnnotationDeleteButtons() {
+      document.querySelectorAll('[data-del-line]').forEach((btn) => {
+        btn.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          const ln = Number(btn.dataset.delLine || 0);
+          if (!Number.isInteger(ln) || ln <= 0) return;
+          deleteAnnotationForSelectedStudent(ln);
+        });
+      });
+    }
+
+    /* ── Manual add annotation (pick from comment library) ───────────────────── */
+    const annotationPickerModal = document.getElementById('annotationPickerModal');
+    const apErrorEl = document.getElementById('apError');
+
+    function apSetError(msg) {
+      apErrorEl.style.display = msg ? 'block' : 'none';
+      apErrorEl.textContent = msg || '';
+    }
+    function apClose() {
+      annotationPickerModal.classList.remove('active');
+    }
+    function apRenderList() {
+      const q = String(document.getElementById('apSearchInput').value || '').trim().toLowerCase();
+      const list = document.getElementById('apList');
+      const rows = (S.commentLibrary || []).filter(c => {
+        const hay = `${c.message || ''} ${c.teacher_text || ''}`.toLowerCase();
+        return !q || hay.includes(q);
+      });
+      if (!rows.length) {
+        list.innerHTML = `<div style="padding:0.75rem;color:var(--color-on-surface-variant);font-size:0.82rem;">No comments found.</div>`;
+        return;
+      }
+      list.innerHTML = rows.map(c => {
+        const id = String(c.id || '');
+        const preview = (String(c.message || '').trim() || '(empty)').slice(0, 320);
+        return `
+          <button type="button" class="ws-item" data-ap-cid="${esc(id)}" style="width:100%;text-align:left;cursor:pointer;border:none;background:transparent;border-bottom:1px solid var(--color-outline-variant);border-radius:0;">
+            <div class="ws-item-info" style="padding:0.65rem 0.75rem;">
+              <div class="ws-item-fn he" style="font-family:inherit;line-height:1.35;white-space:normal;display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden;">${esc(preview)}</div>
+            </div>
+          </button>
+        `;
+      }).join('');
+
+      list.querySelectorAll('[data-ap-cid]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const cid = String(btn.dataset.apCid || '').trim();
+          if (!cid) return;
+          const s = S.students.find(x => x.filename === S.selected);
+          const ln = Number(S.selectedLine || 0);
+          if (!s || !Number.isInteger(ln) || ln <= 0) return;
+          showLoad(`Adding annotation (line ${ln})…`);
+          try {
+            const fd = new FormData();
+            fd.append('only_filename', s.filename);
+            fd.append('line', String(ln));
+            fd.append('comment_id', cid);
+            const json = await postForm(`/projects/${encodeURIComponent(PROJECT_ID)}/annotations/add`, fd);
+            s.annotation = json.annotation || s.annotation;
+            apClose();
+            renderCenter();
+            setStatus('Annotation added.');
+          } catch (e) {
+            apSetError(e.message || 'Failed to add annotation.');
+          } finally {
+            hideLoad();
+          }
+        });
+      });
+    }
+    function apOpen() {
+      const ln = Number(S.selectedLine || 0);
+      if (!Number.isInteger(ln) || ln <= 0) {
+        setStatus('Select a line in the code first, then click “Add annotation”.', true);
+        return;
+      }
+      apSetError('');
+      document.getElementById('apLineLabel').textContent = String(ln);
+      document.getElementById('apSearchInput').value = '';
+      annotationPickerModal.classList.add('active');
+      apRenderList();
+      document.getElementById('apSearchInput').focus();
+    }
+
+    document.getElementById('closeAnnotationPickerBtn').addEventListener('click', apClose);
+    annotationPickerModal.addEventListener('click', (e) => { if (e.target === annotationPickerModal) apClose(); });
+    document.getElementById('apSearchInput').addEventListener('input', apRenderList);
+
     function positionCodeAnnotations() {
       const shell = document.getElementById('clShell');
       const codeCol = document.getElementById('clCodeCol');
@@ -1445,6 +1748,21 @@
       document.querySelectorAll('.cl-ann-card.is-active').forEach((el) => el.classList.remove('is-active'));
     }
 
+    function selectCodeLine(lineNum) {
+      clearCodeAnnotationSelection();
+      const row = document.getElementById(`cl-line-${lineNum}`);
+      if (row) row.classList.add('cl-row-selected');
+      S.selectedLine = lineNum;
+      updateFabAddAnnotationVisibility();
+    }
+
+    function updateFabAddAnnotationVisibility() {
+      const btn = document.getElementById('fabAddAnnotationBtn');
+      if (!btn) return;
+      const ln = Number(S.selectedLine || 0);
+      btn.style.display = (Number.isInteger(ln) && ln > 0) ? '' : 'none';
+    }
+
     function focusCodeAnnotationLine(lineNum, scrollCard = true, scrollLine = false) {
       clearCodeAnnotationSelection();
       const row = document.getElementById(`cl-line-${lineNum}`);
@@ -1462,11 +1780,13 @@
     }
 
     function bindCodeAnnotationInteractions() {
-      document.querySelectorAll('.cl-row-clickable').forEach((row) => {
+      document.querySelectorAll('.cl-row').forEach((row) => {
         row.addEventListener('click', () => {
           const lineNum = Number(row.dataset.line || 0);
           if (!Number.isInteger(lineNum) || lineNum <= 0) return;
-          focusCodeAnnotationLine(lineNum, true, false);
+          selectCodeLine(lineNum);
+          const cards = document.querySelectorAll(`.cl-ann-card[data-line="${lineNum}"]`);
+          if (cards.length > 0) focusCodeAnnotationLine(lineNum, true, false);
         });
       });
 
@@ -1813,6 +2133,7 @@
     document.getElementById('settingsBtn').addEventListener('click', () => {
       document.getElementById('apiKeyInput').value   = S.apiKey;
       document.getElementById('modelSelect').value   = S.model;
+      document.getElementById('settingsProjectNameInput').value = PROJECT_NAME || '';
       const errEl = document.getElementById('settingsError');
       errEl.style.display = 'none';
       document.getElementById('settingsAssignmentInput').value = '';
@@ -1823,6 +2144,181 @@
     document.getElementById('closeSettingsBtn').addEventListener('click', () => settingsModal.classList.remove('active'));
     settingsModal.addEventListener('click', e => { if (e.target === settingsModal) settingsModal.classList.remove('active'); });
 
+    /* ── Comment library modal ───────────────────────────────────────────────── */
+    const commentLibraryModal = document.getElementById('commentLibraryModal');
+    const clErrorEl = document.getElementById('clError');
+    let clBaseline = null;
+
+    function clSetError(msg) {
+      clErrorEl.style.display = msg ? 'block' : 'none';
+      clErrorEl.textContent = msg || '';
+    }
+
+    function clFormSnapshot() {
+      return {
+        message: document.getElementById('clMessageInput').value.trim(),
+        teacher_text: document.getElementById('clTeacherTextInput').value.trim(),
+        id: String(S.selectedCommentId || ''),
+      };
+    }
+
+    function clSetDirty(_isDirty) {}
+
+    function clRecomputeDirty() {
+      if (!clBaseline) { clSetDirty(false); return; }
+      const cur = clFormSnapshot();
+      const isDirty =
+        cur.id !== String(clBaseline.id || '') ||
+        cur.message !== String(clBaseline.message || '') ||
+        cur.teacher_text !== String(clBaseline.teacher_text || '');
+      clSetDirty(isDirty);
+    }
+
+    function clSelected() {
+      const cid = String(S.selectedCommentId || '').trim();
+      if (!cid) return null;
+      return (S.commentLibrary || []).find(c => String(c.id || '') === cid) || null;
+    }
+
+    function clRenderList() {
+      const q = String(document.getElementById('clSearchInput').value || '').trim().toLowerCase();
+      const list = document.getElementById('clList');
+      const rows = (S.commentLibrary || []).filter(c => {
+        const hay = `${c.key || ''} ${c.message || ''} ${c.teacher_text || ''}`.toLowerCase();
+        return !q || hay.includes(q);
+      });
+      if (!rows.length) {
+        list.innerHTML = `<div style="padding:0.75rem;color:var(--color-on-surface-variant);font-size:0.82rem;">No comments.</div>`;
+        return;
+      }
+      list.innerHTML = rows.map(c => {
+        const id = String(c.id || '');
+        const isActive = id === String(S.selectedCommentId || '');
+        const preview = (String(c.message || '').trim().replace(/\s+/g, ' ') || '(empty)').slice(0, 280);
+        return `
+          <div class="ws-item ${isActive ? 'active' : ''}" data-cid="${esc(id)}" style="cursor:pointer;border-bottom:1px solid var(--color-outline-variant);border-radius:0;">
+            <div class="ws-item-info">
+              <div class="ws-item-fn he" style="font-family:inherit;line-height:1.35;white-space:normal;display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden;">${esc(preview)}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      list.querySelectorAll('[data-cid]').forEach(el => {
+        el.addEventListener('click', () => {
+          S.selectedCommentId = el.dataset.cid;
+          clLoadSelectedIntoForm();
+          clRenderList();
+        });
+      });
+    }
+
+    function clLoadSelectedIntoForm() {
+      const c = clSelected();
+      document.getElementById('clIdLabel').textContent = c ? String(c.id || '') : '';
+      document.getElementById('clMessageInput').value = c ? (c.message || '') : '';
+      document.getElementById('clTeacherTextInput').value = c ? (c.teacher_text || '') : '';
+      clBaseline = clFormSnapshot();
+      clRecomputeDirty();
+    }
+
+    async function clRefresh() {
+      clSetError('');
+      const res = await fetch(`/projects/${encodeURIComponent(PROJECT_ID)}/comments`);
+      const json = await res.json();
+      if (!res.ok || !json.ok) throw new Error(json.error || 'Failed to load comment library.');
+      S.commentLibrary = json.comments || [];
+      if (S.selectedCommentId && !S.commentLibrary.find(c => String(c.id || '') === String(S.selectedCommentId))) {
+        S.selectedCommentId = null;
+      }
+      clRenderList();
+      clLoadSelectedIntoForm();
+      // Re-render center if annotations exist (so edits propagate immediately)
+      if (S.selected) renderCenter();
+    }
+
+    function clOpen() {
+      clSetError('');
+      commentLibraryModal.classList.add('active');
+      clRenderList();
+      clLoadSelectedIntoForm();
+    }
+    function clClose() {
+      commentLibraryModal.classList.remove('active');
+    }
+
+    document.getElementById('commentLibraryBtn').addEventListener('click', async () => {
+      try {
+        await clRefresh();
+        clOpen();
+      } catch (e) {
+        setStatus(e.message || 'Failed to open comment library.', true);
+      }
+    });
+    commentLibraryModal.addEventListener('click', e => { if (e.target === commentLibraryModal) clClose(); });
+    document.getElementById('closeCommentLibraryBtn').addEventListener('click', clClose);
+    document.getElementById('clRefreshBtn').addEventListener('click', async () => {
+      try { await clRefresh(); setStatus('Comment library refreshed.'); } catch (e) { clSetError(e.message || 'Refresh failed.'); }
+    });
+    document.getElementById('clSearchInput').addEventListener('input', clRenderList);
+
+    document.getElementById('clNewBtn').addEventListener('click', () => {
+      S.selectedCommentId = null;
+      clLoadSelectedIntoForm();
+      clRenderList();
+      document.getElementById('clMessageInput').focus();
+    });
+
+    // Dirty tracking
+    ['clMessageInput', 'clTeacherTextInput'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('input', clRecomputeDirty);
+    });
+
+    document.getElementById('clSaveBtn').addEventListener('click', async () => {
+      clSetError('');
+      const message = document.getElementById('clMessageInput').value.trim();
+      const teacherText = document.getElementById('clTeacherTextInput').value.trim();
+      if (!message) { clSetError('Message is required.'); return; }
+
+      try {
+        if (!S.selectedCommentId) {
+          const fd = new FormData();
+          fd.append('message', message);
+          if (teacherText) fd.append('teacher_text', teacherText);
+          const json = await postForm(`/projects/${encodeURIComponent(PROJECT_ID)}/comments`, fd);
+          S.selectedCommentId = json.comment && json.comment.id;
+        } else {
+          const fd = new FormData();
+          fd.append('message', message);
+          fd.append('teacher_text', teacherText);
+          await postForm(`/projects/${encodeURIComponent(PROJECT_ID)}/comments/${encodeURIComponent(S.selectedCommentId)}`, fd);
+        }
+        await clRefresh();
+        clBaseline = clFormSnapshot();
+        clRecomputeDirty();
+        setStatus('Comment saved.');
+      } catch (e) {
+        clSetError(e.message || 'Save failed.');
+      }
+    });
+
+    document.getElementById('clDeleteBtn').addEventListener('click', async () => {
+      const c = clSelected();
+      if (!c) { clSetError('Select a comment to delete.'); return; }
+      const ok = window.confirm('Delete this comment?\n\nAny existing annotations referencing it will show as “(deleted comment)”.');
+      if (!ok) return;
+      try {
+        const fd = new FormData();
+        await postForm(`/projects/${encodeURIComponent(PROJECT_ID)}/comments/${encodeURIComponent(c.id)}/delete`, fd);
+        S.selectedCommentId = null;
+        await clRefresh();
+        setStatus('Comment deleted.');
+      } catch (e) {
+        clSetError(e.message || 'Delete failed.');
+      }
+    });
+
     document.getElementById('saveSettingsBtn').addEventListener('click', async () => {
       S.apiKey = document.getElementById('apiKeyInput').value.trim();
       S.model  = document.getElementById('modelSelect').value;
@@ -1830,13 +2326,30 @@
       const errEl = document.getElementById('settingsError');
       errEl.style.display = 'none';
 
+      const projectNameInput = document.getElementById('settingsProjectNameInput');
+      const requestedProjectName = projectNameInput.value.trim();
+      if (!requestedProjectName) {
+        errEl.textContent = 'Project name is required.';
+        errEl.style.display = 'block';
+        return;
+      }
+      const shouldRename = requestedProjectName !== (PROJECT_NAME || '');
       const assignmentInput = document.getElementById('settingsAssignmentInput');
       const modelInput = document.getElementById('settingsModelInput');
       const assignmentFile = assignmentInput.files && assignmentInput.files[0];
       const modelFile = modelInput.files && modelInput.files[0];
+      const shouldUpdateFiles = !!(assignmentFile || modelFile);
 
       try {
-        if (assignmentFile || modelFile) {
+        if (shouldRename) {
+          showLoad('Renaming project…');
+          const renameFd = new FormData();
+          renameFd.append('project_name', requestedProjectName);
+          const renameJson = await postForm(`/projects/${encodeURIComponent(PROJECT_ID)}/rename`, renameFd);
+          PROJECT_NAME = (renameJson.project_name || requestedProjectName).trim();
+          refreshProjectNameUi();
+        }
+        if (shouldUpdateFiles) {
           showLoad('Updating project files…');
           const fd = new FormData();
           if (assignmentFile) fd.append('assignment', assignmentFile, assignmentFile.name);
@@ -1850,7 +2363,11 @@
           await loadData();
         }
         settingsModal.classList.remove('active');
-        if (assignmentFile || modelFile) {
+        if (shouldRename && shouldUpdateFiles) {
+          setStatus('Settings saved. Project renamed and files updated.');
+        } else if (shouldRename) {
+          setStatus('Settings saved. Project renamed.');
+        } else if (shouldUpdateFiles) {
           setStatus('Settings saved. Project files updated.');
         } else {
           setStatus(S.apiKey ? 'Settings saved. API key set.' : 'Settings saved. API key NOT set.');
@@ -1923,7 +2440,12 @@
 
       // ── Code + inline annotations ──
       const annMap = {};
-      (s.annotation?.annotations || []).forEach(a => { if (a.line) annMap[a.line] = a.comment || ''; });
+      (s.annotation?.annotations || []).forEach(a => {
+        if (!a || !a.line) return;
+        const direct = a.comment != null ? String(a.comment || '') : '';
+        const viaLib = a.comment_id != null ? commentMessageById(a.comment_id) : '';
+        annMap[a.line] = direct || viaLib || '';
+      });
       const lines = (s.code || '').split('\n');
       let codeHtml = `<section class="code-section"><h2>Source Code</h2><div class="code-block">`;
       lines.forEach((line, i) => {
@@ -2000,6 +2522,7 @@
     border-left: 3px solid #888;
     padding: 0.55rem 0.85rem;
     border-radius: 0 4px 4px 0;
+    white-space: pre-line;
   }
   /* Test cases */
   .tc-table { width: 100%; border-collapse: collapse; font-size: 9.5pt; }

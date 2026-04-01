@@ -3,6 +3,8 @@
 import json
 import os
 import sqlite3
+import uuid
+from datetime import datetime
 from typing import Any, Optional
 
 _pkg_dir = os.path.dirname(os.path.abspath(__file__))
@@ -60,6 +62,25 @@ def init_db() -> None:
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS project_comments (
+                id TEXT PRIMARY KEY,
+                project_id TEXT NOT NULL,
+                key TEXT,
+                message TEXT NOT NULL,
+                teacher_text TEXT NOT NULL DEFAULT '',
+                created_at TEXT DEFAULT (datetime('now')),
+                updated_at TEXT DEFAULT (datetime('now')),
+                UNIQUE(project_id, key)
+            )
+            """
+        )
+        # Best-effort schema upgrades for existing DBs (non-destructive).
+        cols = {r["name"] for r in conn.execute("PRAGMA table_info(project_comments)").fetchall()}
+        if "teacher_text" not in cols:
+            conn.execute("ALTER TABLE project_comments ADD COLUMN teacher_text TEXT NOT NULL DEFAULT ''")
+        conn.commit()
         conn.commit()
 
 
@@ -267,6 +288,150 @@ def load_project_source_set(project_id: str) -> Optional[dict[str, Any]]:
     if not row:
         return None
     return json.loads(row["data"])
+
+
+def list_project_comments(project_id: str) -> list[dict[str, Any]]:
+    if not project_id:
+        return []
+    with _db() as conn:
+        rows = conn.execute(
+            """
+            SELECT id, project_id, key, message, teacher_text, created_at, updated_at
+            FROM project_comments
+            WHERE project_id = ?
+            ORDER BY datetime(updated_at) DESC, datetime(created_at) DESC
+            """,
+            (project_id,),
+        ).fetchall()
+    out: list[dict[str, Any]] = []
+    for r in rows:
+        out.append(
+            {
+                "id": r["id"],
+                "project_id": r["project_id"],
+                "key": r["key"],
+                "message": r["message"] or "",
+                "teacher_text": r["teacher_text"] or "",
+                "created_at": r["created_at"] or "",
+                "updated_at": r["updated_at"] or "",
+            }
+        )
+    return out
+
+
+def get_project_comment(comment_id: str) -> Optional[dict[str, Any]]:
+    if not comment_id:
+        return None
+    with _db() as conn:
+        row = conn.execute(
+            """
+            SELECT id, project_id, key, message, teacher_text, created_at, updated_at
+            FROM project_comments
+            WHERE id = ?
+            """,
+            (comment_id,),
+        ).fetchone()
+    if not row:
+        return None
+    return {
+        "id": row["id"],
+        "project_id": row["project_id"],
+        "key": row["key"],
+        "message": row["message"] or "",
+        "teacher_text": row["teacher_text"] or "",
+        "created_at": row["created_at"] or "",
+        "updated_at": row["updated_at"] or "",
+    }
+
+
+def create_project_comment(
+    project_id: str,
+    *,
+    message: str,
+    teacher_text: str = "",
+    key: str | None = None,
+) -> dict[str, Any]:
+    if not project_id:
+        raise ValueError("project_id is required")
+    msg = (message or "").strip()
+    if not msg:
+        raise ValueError("message is required")
+    comment_id = str(uuid.uuid4())
+    now = datetime.utcnow().isoformat()
+    with _db() as conn:
+        conn.execute(
+            """
+            INSERT INTO project_comments (id, project_id, key, message, teacher_text, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                comment_id,
+                project_id,
+                (key or None),
+                msg,
+                (teacher_text or "").strip(),
+                now,
+                now,
+            ),
+        )
+        conn.commit()
+    return get_project_comment(comment_id) or {"id": comment_id, "project_id": project_id, "message": msg, "teacher_text": teacher_text}
+
+
+def update_project_comment(
+    comment_id: str,
+    *,
+    message: str | None = None,
+    teacher_text: str | None = None,
+    key: str | None = None,
+) -> Optional[dict[str, Any]]:
+    if not comment_id:
+        return None
+
+    fields: list[str] = []
+    params: list[Any] = []
+
+    if message is not None:
+        msg = message.strip()
+        if not msg:
+            raise ValueError("message cannot be empty")
+        fields.append("message = ?")
+        params.append(msg)
+    if teacher_text is not None:
+        fields.append("teacher_text = ?")
+        params.append(teacher_text.strip())
+    if key is not None:
+        k = key.strip()
+        fields.append("key = ?")
+        params.append(k or None)
+
+    if not fields:
+        return get_project_comment(comment_id)
+
+    fields.append("updated_at = ?")
+    params.append(datetime.utcnow().isoformat())
+
+    params.append(comment_id)
+    with _db() as conn:
+        conn.execute(
+            f"""
+            UPDATE project_comments
+            SET {", ".join(fields)}
+            WHERE id = ?
+            """,
+            params,
+        )
+        conn.commit()
+    return get_project_comment(comment_id)
+
+
+def delete_project_comment(comment_id: str) -> bool:
+    if not comment_id:
+        return False
+    with _db() as conn:
+        cur = conn.execute("DELETE FROM project_comments WHERE id = ?", (comment_id,))
+        conn.commit()
+        return (cur.rowcount or 0) > 0
 
 
 init_db()

@@ -7,6 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}" />
+  <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" sizes="any">
   <style>
     body {
       min-height: 100vh;
@@ -25,44 +26,103 @@
       align-items: center;
       justify-content: space-between;
       margin-bottom: 2.5rem;
+      gap: 1rem;
+      flex-wrap: wrap;
     }
     .home-brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.55rem;
       font-size: 1.45rem;
       color: var(--color-on-surface);
       font-weight: 500;
     }
+    .home-brand-block {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+    .home-subtitle {
+      margin: 0;
+      font-size: 1.1rem;
+      color: var(--color-on-surface);
+      font-weight: 500;
+    }
+    .home-brand-icon {
+      width: 1.75rem;
+      height: 1.75rem;
+      border-radius: 0.2rem;
+      flex-shrink: 0;
+    }
     .projects-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-      gap: 0.85rem;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1rem;
     }
     .project-card {
       background: var(--color-surface-container);
       border: 1px solid var(--color-outline-variant);
       border-radius: var(--radius-big);
-      padding: 1.2rem 1.35rem 1.2rem;
+      padding: 1.05rem 1.1rem;
       text-decoration: none;
-      display: block;
-      transition: border-color 0.15s, background 0.15s;
+      color: inherit;
+      display: flex;
+      flex-direction: column;
+      gap: 0.95rem;
+      transition: border-color 0.16s, background 0.16s, transform 0.16s, box-shadow 0.16s;
       cursor: pointer;
     }
     .project-card:hover {
       border-color: var(--color-primary);
       background: var(--color-surface-container-high);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 18px rgba(0,0,0,0.16);
+    }
+    .project-card-top {
+      display: block;
     }
     .project-card-name {
-      font-size: 0.97rem;
+      font-size: 1rem;
+      font-weight: 500;
       color: var(--color-on-surface);
-      margin-bottom: 0.45rem;
       line-height: 1.35;
     }
-    .project-card-meta {
-      font-family: var(--font-mono);
-      font-size: 0.7rem;
+    .project-card-details {
+      display: grid;
+      gap: 0.44rem;
+    }
+    .project-card-detail {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.5rem;
+      min-width: 0;
+    }
+    .project-card-label {
+      font-size: 0.68rem;
       color: var(--color-on-surface-variant);
+      min-width: 4.35rem;
+      flex-shrink: 0;
+      padding-top: 0.08rem;
+    }
+    .project-card-value {
+      min-width: 0;
+      font-size: 0.77rem;
+      font-family: var(--font-mono);
+      color: var(--color-on-surface);
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+    .project-card-actions {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: auto;
+      padding-top: 0.1rem;
+    }
+    .project-open-btn {
+      min-width: 5.25rem;
+      text-align: center;
+      text-decoration: none;
     }
     .home-empty {
       display: flex;
@@ -115,12 +175,38 @@
       margin-top: 0.6rem;
       display: none;
     }
+    @media (max-width: 640px) {
+      body {
+        padding: 1.75rem 1rem 2.5rem;
+      }
+      .home-topbar {
+        margin-bottom: 1.3rem;
+      }
+      .projects-grid {
+        grid-template-columns: 1fr;
+      }
+      .project-card-detail {
+        flex-direction: column;
+        gap: 0.2rem;
+      }
+      .project-card-label {
+        min-width: 0;
+      }
+    }
   </style>
 </head>
 <body>
   <div class="home-wrap">
     <div class="home-topbar">
-      <div class="home-brand">Check Mate</div>
+      <div class="home-brand">
+        <div class="home-brand-block">
+          <span style="display:inline-flex;align-items:center;gap:0.55rem;">
+            <img class="home-brand-icon" src="{{ url_for('static', filename='favicon.ico') }}" alt="" aria-hidden="true" />
+            <span>Check Mate</span>
+          </span>
+          <p class="home-subtitle">Your projects</p>
+        </div>
+      </div>
       <button class="button primary" id="newProjectBtn">New project</button>
     </div>
 
@@ -134,8 +220,30 @@
     <div class="projects-grid">
       {% for p in projects %}
       <a class="project-card" href="{{ url_for('projects.project_workspace', project_id=p.id) }}">
-        <div class="project-card-name">{{ p.name }}</div>
-        <div class="project-card-meta">{{ p.assignment_name }}</div>
+        <div class="project-card-top">
+          <div class="project-card-name">{{ p.name }}</div>
+        </div>
+        <div class="project-card-details">
+          <div class="project-card-detail">
+            <span class="project-card-label">Assignment</span>
+            <span class="project-card-value">{{ p.assignment_name }}</span>
+          </div>
+          <div class="project-card-detail">
+            <span class="project-card-label">Model file</span>
+            <span class="project-card-value">{{ p.model_solution_name }}</span>
+          </div>
+          <div class="project-card-detail">
+            <span class="project-card-label">Project ID</span>
+            <span class="project-card-value">{{ p.id }}</span>
+          </div>
+          <div class="project-card-detail">
+            <span class="project-card-label">Created</span>
+            <span class="project-card-value">{{ p.created_at or 'unknown' }}</span>
+          </div>
+        </div>
+        <div class="project-card-actions">
+          <span class="button primary project-open-btn">Open</span>
+        </div>
       </a>
       {% endfor %}
     </div>

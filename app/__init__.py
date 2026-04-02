@@ -14,8 +14,8 @@ def create_app() -> Flask:
 
     from . import db  # noqa: F401 — runs init_db on import
 
-    from .routes_main import bp as main_bp
-    from .routes_projects import bp as projects_bp
+    from .routes.main import bp as main_bp
+    from .routes.projects import bp as projects_bp
 
     flask_app.register_blueprint(main_bp)
     flask_app.register_blueprint(projects_bp)

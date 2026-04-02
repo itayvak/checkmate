@@ -72,6 +72,44 @@
       align-items: center;
       gap: 0.38rem;
     }
+
+    /* ── Top-bar settings menu ───────────────────────────────────────────── */
+    .ws-settings-menu-wrap {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+    }
+    .ws-settings-menu {
+      display: none;
+      position: absolute;
+      top: calc(100% + 0.55rem);
+      right: 0;
+      z-index: 1050; /* Above the top bar; below modal overlays */
+      min-width: 230px;
+      background: var(--color-surface-container-high);
+      border: 1px solid var(--color-outline-variant);
+      border-radius: var(--radius-normal);
+      padding: 0.35rem;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.28);
+    }
+    .ws-settings-menu.active { display: block; }
+    .ws-settings-menu-item {
+      width: 100%;
+      text-align: left;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      padding: 0.55rem 0.65rem;
+      border-radius: 0.55rem;
+      color: var(--color-on-surface);
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      font-size: 0.86rem;
+    }
+    .ws-settings-menu-item:hover {
+      background: color-mix(in srgb, var(--color-primary) 14%, transparent);
+    }
     /* ── Toast notifications ─────────────────────────────────────────────────── */
     #toastStack {
       position: fixed;
@@ -888,18 +926,20 @@
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z"/></svg>
         Annotate all
       </button>
-      <button class="button outline" id="settingsBtn" title="API key &amp; model" aria-label="Settings">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.65 1.65 0 0 0 15 19.4a1.65 1.65 0 0 0-1 .6 1.65 1.65 0 0 0-.33 1V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-.33-1 1.65 1.65 0 0 0-1-.6 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-.6-1 1.65 1.65 0 0 0-1-.33H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1-.33 1.65 1.65 0 0 0 .6-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-.6 1.65 1.65 0 0 0 .33-1V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 .33 1 1.65 1.65 0 0 0 1 .6 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.25.33.46.7.6 1 .13.31.2.65.2 1s-.07.69-.2 1c-.14.3-.35.67-.6 1z"/></svg>
-      </button>
-      <button class="button outline" id="commentLibraryBtn" title="Comment library" aria-label="Comment library">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20"/>
-          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-          <path d="M8 7h8"/>
-          <path d="M8 11h8"/>
-          <path d="M8 15h6"/>
-        </svg>
-      </button>
+      <div class="ws-settings-menu-wrap">
+        <button class="button outline" id="settingsMenuBtn" title="Settings" aria-label="Settings" aria-expanded="false">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.65 1.65 0 0 0 15 19.4a1.65 1.65 0 0 0-1 .6 1.65 1.65 0 0 0-.33 1V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-.33-1 1.65 1.65 0 0 0-1-.6 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-.6-1 1.65 1.65 0 0 0-1-.33H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1-.33 1.65 1.65 0 0 0 .6-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-.6 1.65 1.65 0 0 0 .33-1V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 .33 1 1.65 1.65 0 0 0 1 .6 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.25.33.46.7.6 1 .13.31.2.65.2 1s-.07.69-.2 1c-.14.3-.35.67-.6 1z"/>
+          </svg>
+        </button>
+
+        <div class="ws-settings-menu" id="settingsMenu" role="menu" aria-label="Settings menu">
+          <button type="button" class="ws-settings-menu-item" id="menuAiSettings" role="menuitem">AI settings</button>
+          <button type="button" class="ws-settings-menu-item" id="menuWorkspaceSettings" role="menuitem">Workspace settings</button>
+          <button type="button" class="ws-settings-menu-item" id="menuCommentSettings" role="menuitem">Comment library</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -1072,16 +1112,16 @@
     </div>
   </div>
 
-  <!-- ── Settings modal ──────────────────────────────────────────────────────── -->
-  <div class="modal-overlay" id="settingsModal">
+  <!-- ── AI settings modal ─────────────────────────────────────────────── -->
+  <div class="modal-overlay" id="geminiSettingsModal">
     <div class="modal-dialog" role="dialog" aria-modal="true">
-      <div class="modal-title" style="margin-bottom:0.9rem;">Workspace settings</div>
+      <div class="modal-title" style="margin-bottom:0.9rem;">AI settings (stored locally)</div>
       <label class="fm-label" for="apiKeyInput">Gemini API key</label>
       <input class="fm-input" type="password" id="apiKeyInput" autocomplete="off" />
       <div style="margin-top:0.35rem;font-size:0.72rem;color:var(--color-on-surface-variant);">
         Need a key? <a class="fm-link" href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer">Open Gemini API keys</a>
       </div>
-      <label class="fm-label" for="modelSelect">Model</label>
+      <label class="fm-label" for="modelSelect" style="margin-top:0.8rem;">Model</label>
       <select class="fm-input" id="modelSelect">
         <option value="gemini-2.5-flash-lite">gemini-2.5-flash-lite</option>
         <option value="gemini-2.5-flash">gemini-2.5-flash</option>
@@ -1089,17 +1129,29 @@
         <option value="gemini-3-flash-preview">gemini-3-flash-preview</option>
         <option value="gemini-3.1-pro-preview">gemini-3.1-pro-preview</option>
       </select>
+      <div class="fm-error" id="geminiSettingsError" style="margin-top:0.75rem;"></div>
+      <div class="fm-actions" style="justify-content:flex-end;margin-top:0.65rem;">
+        <button class="button outline" id="closeGeminiSettingsBtn">Close</button>
+        <button class="button primary" id="saveGeminiSettingsBtn">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Workspace settings modal ──────────────────────────────────────────── -->
+  <div class="modal-overlay" id="settingsModal">
+    <div class="modal-dialog" role="dialog" aria-modal="true">
+      <div class="modal-title" style="margin-bottom:0.9rem;">Workspace settings</div>
       <label class="fm-label" for="settingsProjectNameInput">Project name</label>
       <input class="fm-input" type="text" id="settingsProjectNameInput" maxlength="200" autocomplete="off" />
-      <div style="height:1px;background:var(--color-outline-variant);margin:0.95rem 0;"></div>
-      <div style="font-size:0.72rem;color:var(--color-on-surface-variant);margin:-0.15rem 0 0.5rem;">
-        Current assignment description: <span id="settingsAssignmentName" style="font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;"></span><br />
-        Current model solution: <span id="settingsModelName" style="font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;"></span>
-      </div>
       <label class="fm-label" for="settingsAssignmentInput">Replace assignment description markdown</label>
       <input class="fm-input" type="file" id="settingsAssignmentInput" accept=".md,.markdown,text/markdown" />
       <label class="fm-label" for="settingsModelInput">Replace model solution</label>
       <input class="fm-input" type="file" id="settingsModelInput" accept=".py,text/x-python" />
+      <br/>
+      <div style="font-size:0.72rem;color:var(--color-on-surface-variant);margin:-0.15rem 0 0.5rem;">
+        Current assignment description: <span id="settingsAssignmentName" style="font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;"></span><br />
+        Current model solution: <span id="settingsModelName" style="font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;"></span>
+      </div>
       <div class="fm-error" id="settingsError"></div>
       <div class="fm-actions" style="justify-content:flex-end;">
         <button class="button outline" id="closeSettingsBtn">Close</button>
@@ -2127,22 +2179,109 @@
       }
     }
 
-    /* ── Settings modal ──────────────────────────────────────────────────────── */
-    const settingsModal = document.getElementById('settingsModal');
+    /* ── Settings modals ────────────────────────────────────────────────────── */
+    const settingsModal = document.getElementById('settingsModal'); // workspace settings
+    const geminiSettingsModal = document.getElementById('geminiSettingsModal');
 
-    document.getElementById('settingsBtn').addEventListener('click', () => {
-      document.getElementById('apiKeyInput').value   = S.apiKey;
-      document.getElementById('modelSelect').value   = S.model;
+    function openGeminiSettings() {
+      if (!geminiSettingsModal) return;
+      document.getElementById('apiKeyInput').value = S.apiKey;
+      document.getElementById('modelSelect').value = S.model;
+      settingsModal.classList.remove('active');
+      const errEl = document.getElementById('geminiSettingsError');
+      if (errEl) {
+        errEl.textContent = '';
+        errEl.style.display = 'none';
+      }
+      geminiSettingsModal.classList.add('active');
+    }
+
+    function openWorkspaceSettings() {
+      if (!settingsModal) return;
+      if (geminiSettingsModal) geminiSettingsModal.classList.remove('active');
       document.getElementById('settingsProjectNameInput').value = PROJECT_NAME || '';
       const errEl = document.getElementById('settingsError');
-      errEl.style.display = 'none';
+      if (errEl) {
+        errEl.textContent = '';
+        errEl.style.display = 'none';
+      }
       document.getElementById('settingsAssignmentInput').value = '';
       document.getElementById('settingsModelInput').value = '';
       refreshSettingsFileNames();
       settingsModal.classList.add('active');
+    }
+
+    /* ── Top-bar settings menu ───────────────────────────────────────────── */
+    const settingsMenuBtn = document.getElementById('settingsMenuBtn');
+    const settingsMenu    = document.getElementById('settingsMenu');
+
+    function closeSettingsMenu() {
+      if (settingsMenu) settingsMenu.classList.remove('active');
+      if (settingsMenuBtn) settingsMenuBtn.setAttribute('aria-expanded', 'false');
+    }
+
+    function openSettingsMenu() {
+      if (settingsMenu) settingsMenu.classList.add('active');
+      if (settingsMenuBtn) settingsMenuBtn.setAttribute('aria-expanded', 'true');
+    }
+
+    function toggleSettingsMenu() {
+      if (!settingsMenu || !settingsMenuBtn) return;
+      const isOpen = settingsMenu.classList.contains('active');
+      if (isOpen) closeSettingsMenu();
+      else openSettingsMenu();
+    }
+
+    if (settingsMenuBtn) {
+      settingsMenuBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleSettingsMenu();
+      });
+    }
+
+    document.addEventListener('click', () => closeSettingsMenu());
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeSettingsMenu();
     });
-    document.getElementById('closeSettingsBtn').addEventListener('click', () => settingsModal.classList.remove('active'));
-    settingsModal.addEventListener('click', e => { if (e.target === settingsModal) settingsModal.classList.remove('active'); });
+
+    const menuAiBtn = document.getElementById('menuAiSettings');
+    const menuWsBtn = document.getElementById('menuWorkspaceSettings');
+    if (menuAiBtn) {
+      menuAiBtn.addEventListener('click', () => {
+        closeSettingsMenu();
+        openGeminiSettings();
+      });
+    }
+    if (menuWsBtn) {
+      menuWsBtn.addEventListener('click', () => {
+        closeSettingsMenu();
+        openWorkspaceSettings();
+      });
+    }
+
+    const closeGeminiSettingsBtnEl = document.getElementById('closeGeminiSettingsBtn');
+    if (closeGeminiSettingsBtnEl) {
+      closeGeminiSettingsBtnEl.addEventListener('click', () => geminiSettingsModal.classList.remove('active'));
+    }
+    if (geminiSettingsModal) {
+      geminiSettingsModal.addEventListener('click', e => { if (e.target === geminiSettingsModal) geminiSettingsModal.classList.remove('active'); });
+    }
+
+    const openWorkspaceSettingsBtnEl = document.getElementById('openWorkspaceSettingsBtn');
+    if (openWorkspaceSettingsBtnEl) {
+      openWorkspaceSettingsBtnEl.addEventListener('click', () => {
+        if (geminiSettingsModal) geminiSettingsModal.classList.remove('active');
+        openWorkspaceSettings();
+      });
+    }
+
+    const closeSettingsBtnEl = document.getElementById('closeSettingsBtn');
+    if (closeSettingsBtnEl) {
+      closeSettingsBtnEl.addEventListener('click', () => settingsModal.classList.remove('active'));
+    }
+    if (settingsModal) {
+      settingsModal.addEventListener('click', e => { if (e.target === settingsModal) settingsModal.classList.remove('active'); });
+    }
 
     /* ── Comment library modal ───────────────────────────────────────────────── */
     const commentLibraryModal = document.getElementById('commentLibraryModal');
@@ -2247,14 +2386,18 @@
       commentLibraryModal.classList.remove('active');
     }
 
-    document.getElementById('commentLibraryBtn').addEventListener('click', async () => {
-      try {
-        await clRefresh();
-        clOpen();
-      } catch (e) {
-        setStatus(e.message || 'Failed to open comment library.', true);
-      }
-    });
+    const menuCommentBtn = document.getElementById('menuCommentSettings');
+    if (menuCommentBtn) {
+      menuCommentBtn.addEventListener('click', async () => {
+        closeSettingsMenu();
+        try {
+          await clRefresh();
+          clOpen();
+        } catch (e) {
+          setStatus(e.message || 'Failed to open comment library.', true);
+        }
+      });
+    }
     commentLibraryModal.addEventListener('click', e => { if (e.target === commentLibraryModal) clClose(); });
     document.getElementById('closeCommentLibraryBtn').addEventListener('click', clClose);
     document.getElementById('clRefreshBtn').addEventListener('click', async () => {
@@ -2319,18 +2462,31 @@
       }
     });
 
-    document.getElementById('saveSettingsBtn').addEventListener('click', async () => {
+    document.getElementById('saveGeminiSettingsBtn').addEventListener('click', async () => {
       S.apiKey = document.getElementById('apiKeyInput').value.trim();
       S.model  = document.getElementById('modelSelect').value;
       writeSettings();
+
+      const errEl = document.getElementById('geminiSettingsError');
+      if (errEl) {
+        errEl.textContent = '';
+        errEl.style.display = 'none';
+      }
+      geminiSettingsModal.classList.remove('active');
+      setStatus(S.apiKey ? 'Gemini settings saved.' : 'Gemini settings saved. API key NOT set.');
+    });
+
+    document.getElementById('saveSettingsBtn').addEventListener('click', async () => {
       const errEl = document.getElementById('settingsError');
-      errEl.style.display = 'none';
+      if (errEl) errEl.style.display = 'none';
 
       const projectNameInput = document.getElementById('settingsProjectNameInput');
       const requestedProjectName = projectNameInput.value.trim();
       if (!requestedProjectName) {
-        errEl.textContent = 'Project name is required.';
-        errEl.style.display = 'block';
+        if (errEl) {
+          errEl.textContent = 'Project name is required.';
+          errEl.style.display = 'block';
+        }
         return;
       }
       const shouldRename = requestedProjectName !== (PROJECT_NAME || '');
@@ -2370,7 +2526,7 @@
         } else if (shouldUpdateFiles) {
           setStatus('Settings saved. Project files updated.');
         } else {
-          setStatus(S.apiKey ? 'Settings saved. API key set.' : 'Settings saved. API key NOT set.');
+          setStatus('Settings saved.');
         }
       } catch (e) {
         errEl.textContent = e.message || 'Failed saving settings.';

@@ -51,8 +51,8 @@ python run.py
 ## מבנה קצר של הפרויקט
 
 - `app/__init__.py` - יצירת אפליקציית Flask ורישום Blueprints.
-- `app/routes_main.py` - ניתוב ראשי (`/`, `/healthz`).
-- `app/routes_projects.py` - תהליכי עבודה של פרויקטים, העלאות והרצות.
+- `app/routes/main/` - ניתוב ראשי (`/`, `/healthz`).
+- `app/routes/projects/` - תהליכי עבודה של פרויקטים (חלוקה ל-`index/comments/annotations/sources/checker/runs/settings`).
 - `app/db.py` - שכבת SQLite ושמירת נתוני פרויקטים/סשנים.
 - `templates/` - תבניות ה-UI.
 - `run.py` - נקודת כניסה לפיתוח מקומי.

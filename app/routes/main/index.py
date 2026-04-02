@@ -1,6 +1,6 @@
-from flask import Blueprint, jsonify, redirect, url_for
+from flask import jsonify, redirect, url_for
 
-bp = Blueprint("main", __name__)
+from . import bp
 
 
 @bp.route("/")
@@ -11,3 +11,4 @@ def index():
 @bp.route("/healthz")
 def healthz():
     return jsonify({"ok": True}), 200
+

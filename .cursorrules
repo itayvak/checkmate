@@ -22,8 +22,8 @@
 - `gemini_client.py` — `SUPPORTED_MODELS`, `REVIEW_SCHEMA`, `call_gemini`, `generate_auto_checker_prompt`, `normalize_checker_script_response`, `review_student_code`.
 - `utils.py` — `parse_student_identity`.
 - Blueprints:
-  - `routes_main` (`main`) — `GET /`, `GET /healthz`.
-  - `routes_projects` (`projects`) — project list/create/workspace plus checker and annotate endpoints.
+  - `routes/main/` (`main`) — `GET /`, `GET /healthz`.
+- `routes/projects/` (`projects`) — project list/create/workspace plus checker and annotate endpoints (split into endpoint modules).
 
 Jinja `url_for` uses blueprint endpoints, mainly `main.index` and `projects.*`.
 

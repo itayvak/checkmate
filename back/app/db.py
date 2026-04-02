@@ -258,6 +258,38 @@ def list_projects() -> list[dict[str, Any]]:
     return summaries
 
 
+def delete_project(project_id: str) -> bool:
+    if not project_id:
+        return False
+
+    with _db() as conn:
+        row = conn.execute("SELECT data FROM projects WHERE id = ?", (project_id,)).fetchone()
+        if not row:
+            return False
+
+        # Best-effort: cascade delete related session rows referenced by this project.
+        # (If ids are missing/invalid, we simply skip those deletes.)
+        try:
+            payload = json.loads(row["data"]) if row["data"] else {}
+        except (json.JSONDecodeError, TypeError):
+            payload = {}
+
+        last_batch_id = (payload.get("last_batch_id") or "").strip()
+        last_grading_session_id = (payload.get("last_grading_session_id") or "").strip()
+
+        if last_batch_id:
+            conn.execute("DELETE FROM batch_run_sessions WHERE id = ?", (last_batch_id,))
+        if last_grading_session_id:
+            conn.execute("DELETE FROM grading_sessions WHERE id = ?", (last_grading_session_id,))
+
+        conn.execute("DELETE FROM project_comments WHERE project_id = ?", (project_id,))
+        conn.execute("DELETE FROM project_source_sets WHERE project_id = ?", (project_id,))
+
+        cur = conn.execute("DELETE FROM projects WHERE id = ?", (project_id,))
+        conn.commit()
+        return (cur.rowcount or 0) > 0
+
+
 def update_project_checker(project_id: str, checker_script: str) -> None:
     payload = load_project(project_id) or {}
     payload["checker_script"] = checker_script

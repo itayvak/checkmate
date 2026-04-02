@@ -39,3 +39,11 @@ Thumbs.db
 .idea/
 .vscode/
 .cursor/
+
+# Frontend
+front/logs
+*.log
+front/node_modules
+front/dist
+front/dist-ssr
+front/*.local

@@ -12,6 +12,7 @@ from ...db import (
     load_project_source_set,
     save_project,
     list_project_comments,
+    delete_project,
 )
 from . import bp
 from .helpers import _decode_upload, _format_checker_run_output, _normalize_title
@@ -20,7 +21,16 @@ from .helpers import _decode_upload, _format_checker_run_output, _normalize_titl
 @bp.get("/projects")
 def projects_page():
     rows = list_projects()
-    return render_template("projects.html", projects=rows)
+    # React frontend consumes this as JSON.
+    return jsonify({"ok": True, "projects": rows})
+
+
+@bp.post("/projects/<project_id>/delete")
+def delete_project_route(project_id: str):
+    ok = delete_project(project_id)
+    if not ok:
+        return jsonify({"ok": False, "error": "Unknown project id."}), 404
+    return jsonify({"ok": True})
 
 
 @bp.post("/projects")
@@ -72,7 +82,8 @@ def create_project():
 def project_workspace(project_id: str):
     project = load_project(project_id)
     if not project:
-        return redirect(url_for("projects.projects_page"))
+        # `/projects` is JSON now (for React), so redirect to the app root.
+        return redirect(url_for("main.index"))
 
     student_set = load_project_source_set(project_id) or {"files": []}
     files = student_set.get("files")

@@ -9,7 +9,9 @@ def create_app() -> Flask:
 
     flask_app = Flask(
         __name__,
-        template_folder=os.path.join(project_root, "templates"),
+        # Old Jinja templates are kept for reference/compatibility while we
+        # migrate the frontend to React.
+        template_folder=os.path.join(project_root, "templates-old"),
     )
 
     from . import db  # noqa: F401 — runs init_db on import

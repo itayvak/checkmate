@@ -41,12 +41,32 @@ pip install -r requirements.txt
 2. הרצה:
 
 ```bash
-python run.py
+python app/main.py
 ```
 
 3. פתיחה בדפדפן:
 
 `http://localhost:5000`
+
+## הרצת Frontend (React)
+
+ה-frontend החדש הוא ב-`front/` (Vite + React). בזמן פיתוח:
+
+1. פתח מסוף נוסף והריץ:
+
+```bash
+cd front
+npm install
+npm run dev
+```
+
+2. השאר את Flask רץ על `http://localhost:5000`.
+
+3. פתח את:
+
+`http://localhost:5173/`
+
+ה-React משתמש ב-`/api/...` מול ה-backend של Flask (באמצעות פרוקסי של Vite), וה-`/projects/<id>` workspace עדיין נטען כעמוד שרת.
 
 ## מבנה קצר של הפרויקט
 
@@ -55,4 +75,5 @@ python run.py
 - `app/routes/projects/` - תהליכי עבודה של פרויקטים (חלוקה ל-`index/comments/annotations/sources/checker/runs/settings`).
 - `app/db.py` - שכבת SQLite ושמירת נתוני פרויקטים/סשנים.
 - `templates/` - תבניות ה-UI.
-- `run.py` - נקודת כניסה לפיתוח מקומי.
+- `app/main.py` - נקודת כניסה לפיתוח מקומי (`python app/main.py`).
+- `run.py` - נשאר קיים כרפיד עבור הרצה מקומית (`python run.py`).

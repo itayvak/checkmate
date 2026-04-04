@@ -11,23 +11,31 @@ import {
   Stack,
   Typography,
 } from "@mui/material";
-import PlayArrowRoundedIcon from "@mui/icons-material/PlayArrowRounded";
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
-import Editor from "@monaco-editor/react";
-import type { RunCheckerResponse, WorkspaceStudent } from "../api";
-import { colors, font } from "../MuiTheme.tsx";
+import type { ProjectComment, RunCheckerResponse, WorkspaceStudent } from "../api";
+import { font } from "../MuiTheme.tsx";
 import CheckRunResults from "./CheckRunResults";
+import { checkRunPassedTotal, computeAnnotationGrade } from "./checkRunStats";
+import StudentCodeViewer from "./StudentCodeViewer";
+import { AutoFixHighRounded, TerminalRounded } from "@mui/icons-material";
 
 type Props = {
   student: WorkspaceStudent;
+  /** Resolves `comment_id` on line annotations to message text. */
+  commentLibrary: ProjectComment[];
   checkerScriptPresent: boolean;
+  /** AI settings include an API key — required to run annotation. */
+  canAnnotate: boolean;
   /** Disables action buttons while any workspace job runs (check all, single check, delete). */
   workspaceBusy: boolean;
   /** Spinner on “Check run this source” only while that request runs. */
   checkThisSourceRunning: boolean;
+  /** Spinner on “Annotate this source” while that request runs. */
+  annotateThisSourceRunning: boolean;
   deletePending: boolean;
   onCheckRunThisSource: () => void;
+  onAnnotateThisSource: () => void;
   onDeleteSource: () => void;
 };
 
@@ -44,28 +52,34 @@ function workspaceCheckToRunResult(
   };
 }
 
-function gradeLabel(grade: string) {
-  if (grade === "pass") return "Pass";
-  if (grade === "fail") return "Fail";
-  return grade;
+function AnnotationGradeChip({
+  student,
+  commentLibrary,
+}: {
+  student: WorkspaceStudent;
+  commentLibrary: ProjectComment[];
+}) {
+  if (!student.annotation?.annotations) return null;
+  const commentMap = new Map(commentLibrary.map((c) => [c.id, c]));
+  const { score, passed } = computeAnnotationGrade(student.annotation.annotations, commentMap);
+  return (
+    <Chip
+      label={`Grade: ${score} / 100`}
+      color={passed ? "success" : "error"}
+      variant="outlined"
+    />
+  );
 }
 
 function CheckStatusChip({ student }: { student: WorkspaceStudent }) {
   const c = student.check;
   if (!c) return null;
 
-  let passed = 0;
-  let total = 1;
-  if (c.check_cases && c.check_cases.length > 0) {
-    total = c.total ?? c.check_cases.length;
-    passed = c.passed ?? c.check_cases.filter((t) => t.passed).length;
-  } else if (c.exit_code === 0) {
-    passed = 1;
-  }
+  const { passed, total } = checkRunPassedTotal(c);
 
   const allOk = passed === total && total > 0;
   const partial = passed > 0 && passed < total;
-  const label = `${passed} / ${total} Checks passed`;
+  const label = `Checks passed: ${passed} / ${total}`;
   const color = allOk ? "success" : partial ? "warning" : "error";
 
   return <Chip label={label} color={color} variant="outlined" />;
@@ -73,18 +87,23 @@ function CheckStatusChip({ student }: { student: WorkspaceStudent }) {
 
 export default function SelectedSourceView({
   student,
+  commentLibrary,
   checkerScriptPresent,
+  canAnnotate,
   workspaceBusy,
   checkThisSourceRunning,
+  annotateThisSourceRunning,
   deletePending,
   onCheckRunThisSource,
+  onAnnotateThisSource,
   onDeleteSource,
 }: Props) {
-  const monacoThemeName = "checkmate-student-code";
   const [checkPanelExpanded, setCheckPanelExpanded] = useState(false);
+  const [summaryPanelExpanded, setSummaryPanelExpanded] = useState(true);
 
   useEffect(() => {
     setCheckPanelExpanded(false);
+    setSummaryPanelExpanded(true);
   }, [student.filename]);
 
   const checkTitle =
@@ -106,13 +125,7 @@ export default function SelectedSourceView({
             <Typography variant="h5" sx={{ fontFamily: font.monospace, mr: "auto" }}>
               {student.filename}
             </Typography>
-            {student.annotation?.grade ? (
-              <Chip
-                label={gradeLabel(student.annotation.grade)}
-                color={student.annotation.grade === "pass" ? "success" : student.annotation.grade === "fail" ? "error" : "default"}
-                variant="outlined"
-              />
-            ) : null}
+            <AnnotationGradeChip student={student} commentLibrary={commentLibrary} />
             <CheckStatusChip student={student} />
             <Box sx={{ flexGrow: 1 }} />
             <Button
@@ -141,48 +154,65 @@ export default function SelectedSourceView({
                 checkThisSourceRunning ? (
                   <CircularProgress size={14} color="inherit" />
                 ) : (
-                  <PlayArrowRoundedIcon />
+                  <TerminalRounded />
                 )
               }
             >
               Check run this source
             </Button>
+            <Button
+              variant="contained"
+              size="small"
+              disabled={!canAnnotate || workspaceBusy}
+              onClick={onAnnotateThisSource}
+              startIcon={
+                annotateThisSourceRunning ? (
+                  <CircularProgress size={14} color="inherit" />
+                ) : (
+                  <AutoFixHighRounded />
+                )
+              }
+            >
+              Annotate this source
+            </Button>
           </Stack>
 
-          {student.annotation?.summary && (
-            <Paper elevation={1} sx={{ p: 1.5 }}>
-              {student.annotation.summary}
-            </Paper>
-          )}
+          {student.annotation?.summary ? (
+            <Accordion
+              disableGutters
+              expanded={summaryPanelExpanded}
+              onChange={(_, v) => setSummaryPanelExpanded(v)}
+              sx={{
+                borderRadius: 1,
+                "&:before": { display: "none" },
+              }}
+            >
+              <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />} sx={{ px: 1.5, minHeight: 48 }}>
+                <Typography variant="subtitle2">AI Summary</Typography>
+              </AccordionSummary>
+              <AccordionDetails sx={{ pt: 0, px: 1.5, pb: 1.5 }}>
+                <Box component="section" dir="rtl">
+                  <Typography
+                    component="div"
+                    variant="body2"
+                    sx={{
+                      whiteSpace: "pre-wrap",
+                      wordBreak: "break-word",
+                      textAlign: "start",
+                    }}
+                  >
+                    {student.annotation.summary}
+                  </Typography>
+                </Box>
+              </AccordionDetails>
+            </Accordion>
+          ) : null}
 
-          <Paper elevation={1} sx={{ flexGrow: 1, overflow: "hidden", p: 0.5, minHeight: 200 }}>
-            <Editor
-              height="100%"
-              defaultLanguage="python"
-              language="python"
-              beforeMount={(monaco) => {
-                monaco.editor.defineTheme(monacoThemeName, {
-                  base: "vs-dark",
-                  inherit: true,
-                  rules: [],
-                  colors: {
-                    "editor.background": colors.surfaceContainerLow,
-                  },
-                });
-              }}
-              theme={monacoThemeName}
-              value={student.code || "No source code available."}
-              options={{
-                readOnly: true,
-                minimap: { enabled: false },
-                fontSize: 13,
-                lineNumbers: "on",
-                wordWrap: "on",
-                scrollBeyondLastLine: false,
-                automaticLayout: true,
-              }}
-            />
-          </Paper>
+          <StudentCodeViewer
+            code={student.code || "No source code available."}
+            annotations={student.annotation?.annotations}
+            commentLibrary={commentLibrary}
+          />
 
           {student.check ? (
             <Accordion

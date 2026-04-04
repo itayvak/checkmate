@@ -18,33 +18,8 @@ import {
   CardActionArea,
 } from "@mui/material";
 import { createProject, deleteProject, listProjects, type ProjectSummary } from "./api";
-
-function FilePicker(props: {
-  label: string;
-  accept?: string;
-  value: File | null;
-  onChange: (file: File | null) => void;
-}) {
-  return (
-    <Stack spacing={0.5}>
-      <Button variant="outlined" component="label">
-        {props.label}
-        <input
-          type="file"
-          hidden
-          accept={props.accept}
-          onChange={(e) => {
-            const f = e.target.files?.[0] ?? null;
-            props.onChange(f);
-          }}
-        />
-      </Button>
-      <Typography variant="caption" color="text.secondary">
-        {props.value ? props.value.name : "No file selected"}
-      </Typography>
-    </Stack>
-  );
-}
+import FileSelectButton from "./FileSelectButton";
+import ThemeModeToggle from "./ThemeModeToggle.tsx";
 
 export default function ProjectsListPage() {
   const [projects, setProjects] = useState<ProjectSummary[] | null>(null);
@@ -187,17 +162,26 @@ export default function ProjectsListPage() {
           spacing={2}
           flexWrap="wrap"
         >
-          <Box>
-            <Typography variant="h4" sx={{ fontWeight: 600 }}>
-              Check Mate
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Your projects
-            </Typography>
-          </Box>
-          <Button variant="contained" onClick={() => setNewProjectOpen(true)}>
-            New project
-          </Button>
+          <Stack direction="row" alignItems="center" spacing={1}>
+            <Box
+              component="img"
+              src="/appLogo.png"
+              alt=""
+              sx={{ height: 48, width: "auto", display: "block", objectFit: "contain" }}
+            />
+            <Box>
+              <Typography variant="h4">Check Mate</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Your projects
+              </Typography>
+            </Box>
+          </Stack>
+          <Stack direction="row" spacing={1} alignItems="center">
+            <ThemeModeToggle />
+            <Button variant="contained" onClick={() => setNewProjectOpen(true)}>
+              New project
+            </Button>
+          </Stack>
         </Stack>
 
         {loadError ? (
@@ -232,7 +216,7 @@ export default function ProjectsListPage() {
               <Card
                 key={p.id}
                 variant="elevation"
-                sx={{ height: "100%", display: "flex", flexDirection: "column" }}
+                sx={{ height: "fit-content", display: "flex", flexDirection: "column" }}
               >
                 <CardActionArea
                   onClick={() => {
@@ -243,7 +227,7 @@ export default function ProjectsListPage() {
                   <CardHeader
                     title={p.name}
                   />
-                  <CardContent sx={{ flex: 1 }}>
+                  <CardContent sx={{ flex: 1, flexGrow: 1 }}>
                     <Stack spacing={1}>
                       <Stack spacing={0.25}>
                         <Typography variant="caption" color="text.secondary">
@@ -311,18 +295,22 @@ export default function ProjectsListPage() {
               fullWidth
             />
 
-            <FilePicker
-              label="Assignment file (.md or .txt)"
+            <FileSelectButton
+              placeholder="Assignment file"
               accept=".md,.txt"
-              value={assignmentFile}
-              onChange={setAssignmentFile}
+              file={assignmentFile}
+              onFileChange={setAssignmentFile}
+              fullWidth
+              disabled={submitting}
             />
 
-            <FilePicker
-              label="Model solution (.py)"
+            <FileSelectButton
+              placeholder="Model solution"
               accept=".py"
-              value={modelSolutionFile}
-              onChange={setModelSolutionFile}
+              file={modelSolutionFile}
+              onFileChange={setModelSolutionFile}
+              fullWidth
+              disabled={submitting}
             />
           </Stack>
         </DialogContent>

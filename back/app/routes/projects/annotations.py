@@ -77,7 +77,6 @@ def delete_one_annotation(project_id: str):
         return jsonify({"ok": False, "error": f"Could not save grading session: {e}"}), 500
 
     out = {
-        "grade": (updated_item or {}).get("grade") or "",
         "summary": (updated_item or {}).get("summary") or "",
         "annotations": (updated_item or {}).get("annotations") or [],
     }
@@ -156,7 +155,6 @@ def add_one_annotation(project_id: str):
         return jsonify({"ok": False, "error": f"Could not save grading session: {e}"}), 500
 
     out = {
-        "grade": (updated_item or {}).get("grade") or "",
         "summary": (updated_item or {}).get("summary") or "",
         "annotations": (updated_item or {}).get("annotations") or [],
     }

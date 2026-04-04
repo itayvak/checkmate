@@ -13,6 +13,13 @@ export type CheckCase = {
   message?: string;
 };
 
+/** One inline comment attached to a source line (library id and/or free text). */
+export type LineAnnotation = {
+  line?: number;
+  comment?: string;
+  comment_id?: string;
+};
+
 export type WorkspaceStudent = {
   filename: string;
   code: string;
@@ -24,10 +31,20 @@ export type WorkspaceStudent = {
     check_cases?: CheckCase[];
   } | null;
   annotation: {
-    grade?: string;
     summary?: string;
-    annotations?: Array<Record<string, unknown>>;
+    annotations?: LineAnnotation[];
   } | null;
+};
+
+export type ProjectComment = {
+  id: string;
+  project_id: string;
+  key: string | null;
+  message: string;
+  teacher_text: string;
+  points: number;
+  created_at: string;
+  updated_at: string;
 };
 
 export type WorkspaceDataResponse = {
@@ -37,7 +54,7 @@ export type WorkspaceDataResponse = {
     assignment_name: string;
     model_solution_name: string;
     checker_script: string;
-    comment_library: Array<Record<string, unknown>>;
+    comment_library: ProjectComment[];
   };
   students?: WorkspaceStudent[];
   error?: string;
@@ -81,6 +98,10 @@ export type UpdateProjectFilesResponse =
 export type GenerateCheckerResponse =
   | { ok: true; checker_script: string }
   | { ok: false; errors?: string[]; error?: string };
+
+export type CheckerPromptResponse =
+  | { ok: true; prompt: string }
+  | { ok: false; error: string };
 
 export type RunCheckerResponse =
   | {
@@ -220,6 +241,28 @@ export async function generateCheckerScript(
   return json;
 }
 
+export async function getCheckerGenerationPrompt(
+  projectId: string,
+  params: { extraInstructions?: string },
+): Promise<CheckerPromptResponse> {
+  const fd = new FormData();
+  fd.append("extra_instructions", params.extraInstructions || "");
+
+  const res = await fetch(`/api/projects/${encodeURIComponent(projectId)}/checker/prompt`, {
+    method: "POST",
+    body: fd,
+  });
+  const contentType = res.headers.get("content-type") || "";
+  if (!contentType.includes("application/json")) {
+    await res.text();
+    return {
+      ok: false,
+      error: `Unexpected non-JSON response (HTTP ${res.status}). Restart backend and retry.`,
+    };
+  }
+  return (await res.json()) as CheckerPromptResponse;
+}
+
 export async function runCheckerScriptOnModel(
   projectId: string,
   checkerScript: string,
@@ -262,5 +305,99 @@ export async function runCheckOnSource(
   });
   const json = (await res.json()) as RunCheckOnSourceResponse;
   return json;
+}
+
+export type RunAnnotateResponse =
+  | { ok: true; students: WorkspaceStudent[]; comment_library?: ProjectComment[] }
+  | { ok: false; error: string };
+
+/** Gemini annotation for one source (`only_filename` matches the legacy template). */
+export async function runAnnotate(
+  projectId: string,
+  params: {
+    apiKey: string;
+    modelName: string;
+    filename: string;
+    extraInstructions?: string;
+  },
+): Promise<RunAnnotateResponse> {
+  const fd = new FormData();
+  fd.append("api_key", params.apiKey);
+  fd.append("model_name", params.modelName);
+  fd.append("only_filename", params.filename);
+  fd.append("extra_instructions", params.extraInstructions ?? "");
+  const res = await fetch(`/api/projects/${encodeURIComponent(projectId)}/run/annotate`, {
+    method: "POST",
+    body: fd,
+  });
+  return (await res.json()) as RunAnnotateResponse;
+}
+
+export type ListCommentsResponse = { ok: true; comments: ProjectComment[] } | { ok: false; error: string };
+
+export type CreateCommentResponse =
+  | { ok: true; comment: ProjectComment }
+  | { ok: false; error: string };
+
+export type UpdateCommentResponse =
+  | { ok: true; comment: ProjectComment }
+  | { ok: false; error: string };
+
+export type DeleteCommentResponse = { ok: true } | { ok: false; error: string };
+
+export async function listProjectComments(projectId: string): Promise<ProjectComment[]> {
+  const res = await fetch(`/api/projects/${encodeURIComponent(projectId)}/comments`);
+  const json = (await res.json()) as ListCommentsResponse;
+  if (!res.ok || !json.ok) {
+    throw new Error(!json.ok && "error" in json ? json.error : "Failed to load comment library.");
+  }
+  return json.comments;
+}
+
+export async function createProjectComment(
+  projectId: string,
+  params: { message: string; teacher_text?: string; points?: number },
+): Promise<CreateCommentResponse> {
+  const res = await fetch(`/api/projects/${encodeURIComponent(projectId)}/comments`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      message: params.message,
+      teacher_text: params.teacher_text ?? "",
+      points: params.points ?? 0,
+    }),
+  });
+  return (await res.json()) as CreateCommentResponse;
+}
+
+export async function updateProjectComment(
+  projectId: string,
+  commentId: string,
+  params: { message: string; teacher_text: string; points?: number },
+): Promise<UpdateCommentResponse> {
+  const res = await fetch(
+    `/api/projects/${encodeURIComponent(projectId)}/comments/${encodeURIComponent(commentId)}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: params.message,
+        teacher_text: params.teacher_text,
+        points: params.points ?? 0,
+      }),
+    },
+  );
+  return (await res.json()) as UpdateCommentResponse;
+}
+
+export async function deleteProjectComment(
+  projectId: string,
+  commentId: string,
+): Promise<DeleteCommentResponse> {
+  const res = await fetch(
+    `/api/projects/${encodeURIComponent(projectId)}/comments/${encodeURIComponent(commentId)}/delete`,
+    { method: "POST" },
+  );
+  return (await res.json()) as DeleteCommentResponse;
 }
 

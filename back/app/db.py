@@ -70,6 +70,7 @@ def init_db() -> None:
                 key TEXT,
                 message TEXT NOT NULL,
                 teacher_text TEXT NOT NULL DEFAULT '',
+                points INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT DEFAULT (datetime('now')),
                 updated_at TEXT DEFAULT (datetime('now')),
                 UNIQUE(project_id, key)
@@ -80,6 +81,8 @@ def init_db() -> None:
         cols = {r["name"] for r in conn.execute("PRAGMA table_info(project_comments)").fetchall()}
         if "teacher_text" not in cols:
             conn.execute("ALTER TABLE project_comments ADD COLUMN teacher_text TEXT NOT NULL DEFAULT ''")
+        if "points" not in cols:
+            conn.execute("ALTER TABLE project_comments ADD COLUMN points INTEGER NOT NULL DEFAULT 0")
         conn.commit()
         conn.commit()
 
@@ -328,7 +331,7 @@ def list_project_comments(project_id: str) -> list[dict[str, Any]]:
     with _db() as conn:
         rows = conn.execute(
             """
-            SELECT id, project_id, key, message, teacher_text, created_at, updated_at
+            SELECT id, project_id, key, message, teacher_text, points, created_at, updated_at
             FROM project_comments
             WHERE project_id = ?
             ORDER BY datetime(updated_at) DESC, datetime(created_at) DESC
@@ -344,6 +347,7 @@ def list_project_comments(project_id: str) -> list[dict[str, Any]]:
                 "key": r["key"],
                 "message": r["message"] or "",
                 "teacher_text": r["teacher_text"] or "",
+                "points": int(r["points"] or 0),
                 "created_at": r["created_at"] or "",
                 "updated_at": r["updated_at"] or "",
             }
@@ -357,7 +361,7 @@ def get_project_comment(comment_id: str) -> Optional[dict[str, Any]]:
     with _db() as conn:
         row = conn.execute(
             """
-            SELECT id, project_id, key, message, teacher_text, created_at, updated_at
+            SELECT id, project_id, key, message, teacher_text, points, created_at, updated_at
             FROM project_comments
             WHERE id = ?
             """,
@@ -371,6 +375,7 @@ def get_project_comment(comment_id: str) -> Optional[dict[str, Any]]:
         "key": row["key"],
         "message": row["message"] or "",
         "teacher_text": row["teacher_text"] or "",
+        "points": int(row["points"] or 0),
         "created_at": row["created_at"] or "",
         "updated_at": row["updated_at"] or "",
     }
@@ -381,6 +386,7 @@ def create_project_comment(
     *,
     message: str,
     teacher_text: str = "",
+    points: int = 0,
     key: str | None = None,
 ) -> dict[str, Any]:
     if not project_id:
@@ -390,11 +396,12 @@ def create_project_comment(
         raise ValueError("message is required")
     comment_id = str(uuid.uuid4())
     now = datetime.utcnow().isoformat()
+    pts = max(0, int(points or 0))
     with _db() as conn:
         conn.execute(
             """
-            INSERT INTO project_comments (id, project_id, key, message, teacher_text, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO project_comments (id, project_id, key, message, teacher_text, points, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 comment_id,
@@ -402,12 +409,13 @@ def create_project_comment(
                 (key or None),
                 msg,
                 (teacher_text or "").strip(),
+                pts,
                 now,
                 now,
             ),
         )
         conn.commit()
-    return get_project_comment(comment_id) or {"id": comment_id, "project_id": project_id, "message": msg, "teacher_text": teacher_text}
+    return get_project_comment(comment_id) or {"id": comment_id, "project_id": project_id, "message": msg, "teacher_text": teacher_text, "points": pts}
 
 
 def update_project_comment(
@@ -415,6 +423,7 @@ def update_project_comment(
     *,
     message: str | None = None,
     teacher_text: str | None = None,
+    points: int | None = None,
     key: str | None = None,
 ) -> Optional[dict[str, Any]]:
     if not comment_id:
@@ -432,6 +441,9 @@ def update_project_comment(
     if teacher_text is not None:
         fields.append("teacher_text = ?")
         params.append(teacher_text.strip())
+    if points is not None:
+        fields.append("points = ?")
+        params.append(max(0, int(points)))
     if key is not None:
         k = key.strip()
         fields.append("key = ?")

@@ -19,7 +19,7 @@
 ## Package Layout (`app/`)
 - `__init__.py` — `create_app()`, registers blueprints, sets `template_folder` to repo `templates/`.
 - `db.py` — SQLite (`data.db` at project root unless `CHECKMATE_DATA_DIR` is set), `init_db()` on import.
-- `gemini_client.py` — `SUPPORTED_MODELS`, `REVIEW_SCHEMA`, `call_gemini`, `generate_auto_checker_prompt`, `normalize_checker_script_response`, `review_student_code`.
+- `llm/` — pluggable LLM layer: `get_llm_provider()`, `LLMProvider`, `GeminiProvider`, `REVIEW_SCHEMA`, `review_student_code`, checker prompts (`generate_auto_checker_prompt`, `normalize_checker_script_response`). Env: `CHECKMATE_LLM_PROVIDER` (default `gemini`).
 - `utils.py` — `parse_student_identity`.
 - Blueprints:
   - `routes/main/` (`main`) — `GET /`, `GET /healthz`.

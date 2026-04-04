@@ -7,11 +7,9 @@ from typing import Any
 from flask import jsonify, request
 
 from ...db import load_project, save_project, update_project_checker
-from ...gemini_client import (
-    DEFAULT_MODEL,
-    SUPPORTED_MODELS,
-    call_gemini,
+from ...llm import (
     generate_auto_checker_prompt,
+    get_llm_provider,
     normalize_checker_script_response,
 )
 from . import bp
@@ -23,19 +21,42 @@ from .helpers import (
 )
 
 
+@bp.post("/projects/<project_id>/checker/prompt")
+def checker_generation_prompt(project_id: str):
+    project = load_project(project_id)
+    if not project:
+        return jsonify({"ok": False, "error": "Unknown project id."}), 404
+
+    extra_instructions = (request.form.get("extra_instructions") or "").strip()
+    prompt = generate_auto_checker_prompt(
+        assignment_md=project.get("assignment_md") or "",
+        model_solution_py=project.get("model_solution_py") or "",
+        extra_instructions=extra_instructions,
+    )
+    return jsonify({"ok": True, "prompt": prompt})
+
+
 @bp.post("/projects/<project_id>/checker/generate")
 def generate_checker(project_id: str):
     project = load_project(project_id)
     if not project:
         return jsonify({"ok": False, "errors": ["Unknown project id."]}), 404
 
+    provider = get_llm_provider()
     api_key = (request.form.get("api_key") or "").strip()
     if not api_key:
-        return jsonify({"ok": False, "errors": ["A Gemini API key is required."]}), 400
+        return jsonify(
+            {"ok": False, "errors": [f"An API key is required ({provider.label})."]}
+        ), 400
 
-    selected_model = (request.form.get("model_name") or DEFAULT_MODEL).strip()
-    if selected_model not in SUPPORTED_MODELS:
-        return jsonify({"ok": False, "errors": ["Please choose a supported Gemini model."]}), 400
+    selected_model = (request.form.get("model_name") or provider.default_model).strip()
+    if selected_model not in provider.supported_models:
+        return jsonify(
+            {
+                "ok": False,
+                "errors": [f"Please choose a supported model ({provider.label})."],
+            }
+        ), 400
 
     extra_instructions = (request.form.get("extra_instructions") or "").strip()
     prompt = generate_auto_checker_prompt(
@@ -44,13 +65,13 @@ def generate_checker(project_id: str):
         extra_instructions=extra_instructions,
     )
     try:
-        max_tokens = 32768 if ("pro" in selected_model or "preview" in selected_model) else 16384
-        raw = call_gemini(
-            api_key=api_key,
-            prompt=prompt,
-            model_name=selected_model,
+        max_tokens = provider.max_output_tokens(selected_model)
+        raw = provider.complete(
+            api_key,
+            prompt,
+            model=selected_model,
             max_tokens=max_tokens,
-            response_schema=None,
+            json_schema=None,
         )
         checker_script = normalize_checker_script_response(raw)
     except Exception as e:

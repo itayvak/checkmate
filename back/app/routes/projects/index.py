@@ -168,7 +168,6 @@ def project_workspace_data(project_id: str):
         ann = ann_by_fn.get(filename)
         ann_d: Optional[dict[str, Any]] = (
             {
-                "grade": ann.get("grade") or "",
                 "summary": ann.get("summary") or "",
                 "annotations": ann.get("annotations") or [],
             }

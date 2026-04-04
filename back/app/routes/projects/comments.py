@@ -25,9 +25,14 @@ def project_comments_create(project_id: str):
     body = request.get_json(silent=True) if request.is_json else None
     message = (request.form.get("message") or (body.get("message") if isinstance(body, dict) else "") or "").strip()
     teacher_text = (request.form.get("teacher_text") or (body.get("teacher_text") if isinstance(body, dict) else "") or "").strip()
+    _points_raw = request.form.get("points") or (body.get("points") if isinstance(body, dict) else None)
+    try:
+        points = int(_points_raw) if _points_raw is not None else 0
+    except (TypeError, ValueError):
+        points = 0
 
     try:
-        created = create_project_comment(project_id, message=message, teacher_text=teacher_text, key=None)
+        created = create_project_comment(project_id, message=message, teacher_text=teacher_text, points=points, key=None)
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 400
     return jsonify({"ok": True, "comment": created})
@@ -41,18 +46,29 @@ def project_comments_update(project_id: str, comment_id: str):
     body = request.get_json(silent=True) if request.is_json else None
     message = request.form.get("message")
     teacher_text = request.form.get("teacher_text")
+    points_raw = request.form.get("points")
 
     if isinstance(body, dict):
         if message is None and "message" in body:
             message = body.get("message")
         if teacher_text is None and "teacher_text" in body:
             teacher_text = body.get("teacher_text")
+        if points_raw is None and "points" in body:
+            points_raw = body.get("points")
+
+    points: int | None = None
+    if points_raw is not None:
+        try:
+            points = int(points_raw)
+        except (TypeError, ValueError):
+            points = 0
 
     try:
         updated = update_project_comment(
             comment_id,
             message=message if message is None else str(message),
             teacher_text=teacher_text if teacher_text is None else str(teacher_text),
+            points=points,
             key=None,
         )
     except Exception as e:

@@ -10,6 +10,7 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
+import FileSelectButton from "../FileSelectButton";
 
 type Props = {
   open: boolean;
@@ -41,42 +42,26 @@ export default function ProjectSettingsDialog(props: Props) {
             autoComplete="off"
             fullWidth
           />
-          <Button variant="outlined" component="label">
-            Replace assignment description markdown
-            <input
-              type="file"
-              hidden
-              accept=".md,.markdown,text/markdown,.txt,text/plain"
-              onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                props.onAssignmentFileChange(e.target.files?.[0] ?? null)
-              }
-            />
-          </Button>
-          <Typography variant="caption" color="text.secondary">
-            {props.assignmentFile &&
-              `Selected: ${props.assignmentFile.name}`
-            }
-          </Typography>
-
+          <FileSelectButton
+            placeholder="Replace assignment description markdown"
+            accept=".md,.markdown,text/markdown,.txt,text/plain"
+            file={props.assignmentFile}
+            onFileChange={props.onAssignmentFileChange}
+            fullWidth
+            disabled={props.saving}
+          />
           <Typography variant="caption" color="text.secondary">
             Current assignment description: {props.assignmentName || "(none)"}
           </Typography>
 
-          <Button variant="outlined" component="label">
-            Replace model solution
-            <input
-              type="file"
-              hidden
-              accept=".py,text/x-python"
-              onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                props.onModelFileChange(e.target.files?.[0] ?? null)
-              }
-            />
-          </Button>
-          <Typography variant="caption" color="text.secondary">
-            {props.modelFile && `Selected: ${props.modelFile.name}`}
-          </Typography>
-
+          <FileSelectButton
+            placeholder="Replace model solution"
+            accept=".py,text/x-python"
+            file={props.modelFile}
+            onFileChange={props.onModelFileChange}
+            fullWidth
+            disabled={props.saving}
+          />
           <Typography variant="caption" color="text.secondary">
             Current model solution: {props.modelSolutionName || "(none)"}
           </Typography>

@@ -1,16 +1,19 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Box, IconButton, Snackbar, Stack, Typography } from "@mui/material";
 import {
   deleteSource,
   generateCheckerScript,
+  getCheckerGenerationPrompt,
   getWorkspaceData,
   renameProject,
+  runAnnotate,
   runCheckOnSource,
   runCheckerScriptOnModel,
   saveCheckerScript,
   updateProjectFiles,
   uploadSources,
   type RunCheckerResponse,
+  type ProjectComment,
   type WorkspaceStudent,
 } from "./api";
 import WorkspaceTopBar from "./workspace/WorkspaceTopBar";
@@ -18,10 +21,16 @@ import WorkspaceSettingsMenu from "./workspace/WorkspaceSettingsMenu";
 import ProjectSettingsDialog from "./workspace/ProjectSettingsDialog";
 import AiSettingsDialog from "./workspace/AiSettingsDialog";
 import SourcesSidebar from "./workspace/SourcesSidebar";
+import UploadSourcesDialog from "./workspace/UploadSourcesDialog";
 import SelectedSourceView from "./workspace/SelectedSourceView";
 import CheckerScriptDialog from "./workspace/CheckerScriptDialog";
 import CheckRunAllDialog, { type CheckRunAllProgress } from "./workspace/CheckRunAllDialog";
 import DeleteSourceConfirmDialog from "./workspace/DeleteSourceConfirmDialog";
+import CommentLibraryDialog from "./workspace/CommentLibraryDialog";
+import AnnotateOptionsDialog, { type AnnotateScope } from "./workspace/AnnotateOptionsDialog";
+import AnnotateAllDialog from "./workspace/AnnotateAllDialog";
+import CheckRunMatrixDialog from "./workspace/CheckRunMatrixDialog";
+import GradesSummaryDialog from "./workspace/GradesSummaryDialog";
 import { sortSourcesByFilename } from "./workspace/sortSources";
 import {
   DEFAULT_MODEL,
@@ -59,6 +68,7 @@ export default function ProjectWorkspacePage({ projectId }: Props) {
   const [checkerError, setCheckerError] = useState<string | null>(null);
   const [checkerRunResult, setCheckerRunResult] = useState<RunCheckerResponse | null>(null);
   const [checkerGenerating, setCheckerGenerating] = useState(false);
+  const [checkerPromptCopying, setCheckerPromptCopying] = useState(false);
   const [checkerRunning, setCheckerRunning] = useState(false);
   const [checkerSaving, setCheckerSaving] = useState(false);
   const [projectNameInput, setProjectNameInput] = useState("");
@@ -69,10 +79,20 @@ export default function ProjectWorkspacePage({ projectId }: Props) {
   const [checkThisSourcePending, setCheckThisSourcePending] = useState(false);
   const [deleteSourcePending, setDeleteSourcePending] = useState(false);
   const [deleteConfirmFilename, setDeleteConfirmFilename] = useState<string | null>(null);
+  const [commentLibraryOpen, setCommentLibraryOpen] = useState(false);
+  const [commentLibrary, setCommentLibrary] = useState<ProjectComment[]>([]);
   const [checkRunAllPending, setCheckRunAllPending] = useState(false);
   const [checkRunAllProgress, setCheckRunAllProgress] = useState<CheckRunAllProgress | null>(null);
   const checkRunAllCancelRequestedRef = useRef(false);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const annotateAllCancelRequestedRef = useRef(false);
+  const [annotateOptionsOpen, setAnnotateOptionsOpen] = useState(false);
+  const [annotateOptionsScope, setAnnotateOptionsScope] = useState<AnnotateScope>("all");
+  const [annotateAllPending, setAnnotateAllPending] = useState(false);
+  const [annotateAllProgress, setAnnotateAllProgress] = useState<CheckRunAllProgress | null>(null);
+  const [annotateOnePending, setAnnotateOnePending] = useState(false);
+  const [checkMatrixOpen, setCheckMatrixOpen] = useState(false);
+  const [gradesSummaryOpen, setGradesSummaryOpen] = useState(false);
+  const [uploadSourcesDialogOpen, setUploadSourcesDialogOpen] = useState(false);
   const settingsMenuOpen = Boolean(settingsAnchorEl);
 
   const showToast = (message: string, severity: "success" | "error" = "success") => {
@@ -103,6 +123,7 @@ export default function ProjectWorkspacePage({ projectId }: Props) {
     setAssignmentName(data.project?.assignment_name || "");
     setModelSolutionName(data.project?.model_solution_name || "");
     setCheckerScript(data.project?.checker_script || "");
+    setCommentLibrary(data.project?.comment_library ?? []);
     const rows = data.students || [];
     setStudents(rows);
 
@@ -131,6 +152,7 @@ export default function ProjectWorkspacePage({ projectId }: Props) {
         setAssignmentName(data.project?.assignment_name || "");
         setModelSolutionName(data.project?.model_solution_name || "");
         setCheckerScript(data.project?.checker_script || "");
+        setCommentLibrary(data.project?.comment_library ?? []);
         const rows = data.students || [];
         setStudents(rows);
         setSelectedFilename(
@@ -157,11 +179,9 @@ export default function ProjectWorkspacePage({ projectId }: Props) {
     [students],
   );
 
-  const onUploadFilesSelected = async (e: ChangeEvent<HTMLInputElement>) => {
-    const fileList = e.target.files;
-    if (!fileList || fileList.length === 0) return;
+  const confirmUploadSources = async (picked: File[]) => {
+    if (picked.length === 0) return;
 
-    const picked = Array.from(fileList);
     const pickedNames = new Set(picked.map((f) => f.name));
     setUploading(true);
 
@@ -182,13 +202,11 @@ export default function ProjectWorkspacePage({ projectId }: Props) {
       showToast(
         `${result.count} source file${result.count === 1 ? "" : "s"} uploaded successfully.`,
       );
+      setUploadSourcesDialogOpen(false);
     } catch (err) {
       showToast((err as Error).message || "Failed uploading source files.", "error");
     } finally {
       setUploading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
     }
   };
 
@@ -353,11 +371,34 @@ export default function ProjectWorkspacePage({ projectId }: Props) {
     }
   };
 
+  const copyCheckerPromptFromDialog = async () => {
+    setCheckerError(null);
+    setCheckerPromptCopying(true);
+    try {
+      const result = await getCheckerGenerationPrompt(projectId, {
+        extraInstructions: checkerContext.trim(),
+      });
+      if (!result.ok) {
+        setCheckerError(result.error || "Failed to build checker generation prompt.");
+        return;
+      }
+      await navigator.clipboard.writeText(result.prompt || "");
+      showToast("Checker generation prompt copied.");
+    } catch (e) {
+      setCheckerError((e as Error).message || "Failed to copy checker generation prompt.");
+    } finally {
+      setCheckerPromptCopying(false);
+    }
+  };
+
   const workspaceCheckBusy =
     checkThisSourcePending ||
     checkRunAllPending ||
     deleteSourcePending ||
-    Boolean(deleteConfirmFilename);
+    Boolean(deleteConfirmFilename) ||
+    annotateAllPending ||
+    annotateOnePending ||
+    annotateOptionsOpen;
 
   const runCheckAll = async () => {
     const script = checkerScript.trim();
@@ -373,7 +414,10 @@ export default function ProjectWorkspacePage({ projectId }: Props) {
       checkRunAllPending ||
       checkThisSourcePending ||
       deleteSourcePending ||
-      deleteConfirmFilename
+      deleteConfirmFilename ||
+      annotateAllPending ||
+      annotateOnePending ||
+      annotateOptionsOpen
     ) {
       return;
     }
@@ -450,13 +494,176 @@ export default function ProjectWorkspacePage({ projectId }: Props) {
     checkRunAllCancelRequestedRef.current = true;
   };
 
+  const requestAnnotateAllCancel = () => {
+    annotateAllCancelRequestedRef.current = true;
+  };
+
+  const beginAnnotateAll = () => {
+    if (!apiKeyInput.trim()) {
+      showToast('Open AI settings and enter an API key first.', "error");
+      return;
+    }
+    if (students.length === 0) {
+      showToast("No sources uploaded yet.", "error");
+      return;
+    }
+    if (
+      checkRunAllPending ||
+      checkThisSourcePending ||
+      deleteSourcePending ||
+      deleteConfirmFilename ||
+      annotateAllPending ||
+      annotateOnePending ||
+      annotateOptionsOpen
+    ) {
+      return;
+    }
+    setAnnotateOptionsScope("all");
+    setAnnotateOptionsOpen(true);
+  };
+
+  const beginAnnotateThisSource = () => {
+    if (!selectedStudent) return;
+    if (!apiKeyInput.trim()) {
+      showToast('Open AI settings and enter an API key first.', "error");
+      return;
+    }
+    if (
+      checkRunAllPending ||
+      checkThisSourcePending ||
+      deleteSourcePending ||
+      deleteConfirmFilename ||
+      annotateAllPending ||
+      annotateOnePending ||
+      annotateOptionsOpen
+    ) {
+      return;
+    }
+    setAnnotateOptionsScope("one");
+    setAnnotateOptionsOpen(true);
+  };
+
+  const runAnnotateAll = async (extraInstructions: string) => {
+    const queue = studentsSorted.slice();
+    const total = queue.length;
+    let errors = 0;
+    annotateAllCancelRequestedRef.current = false;
+
+    setAnnotateAllPending(true);
+    setAnnotateAllProgress({
+      total,
+      doneCount: 0,
+      currentFilename: queue[0]?.filename ?? "",
+    });
+
+    try {
+      let completed = 0;
+      for (let i = 0; i < total; i++) {
+        if (annotateAllCancelRequestedRef.current) break;
+
+        const student = queue[i];
+        setAnnotateAllProgress({
+          total,
+          doneCount: i,
+          currentFilename: student.filename,
+        });
+
+        try {
+          const result = await runAnnotate(projectId, {
+            apiKey: apiKeyInput.trim(),
+            modelName: modelNameInput,
+            filename: student.filename,
+            extraInstructions,
+          });
+          if (!result.ok) {
+            errors++;
+          } else {
+            if (result.comment_library) {
+              setCommentLibrary(result.comment_library);
+            }
+            setStudents((prev) => {
+              const updates = new Map(result.students.map((s) => [s.filename, s]));
+              return prev.map((s) => updates.get(s.filename) ?? s);
+            });
+          }
+        } catch {
+          errors++;
+        }
+
+        completed++;
+        setAnnotateAllProgress({
+          total,
+          doneCount: completed,
+          currentFilename: student.filename,
+        });
+
+        if (annotateAllCancelRequestedRef.current) break;
+      }
+
+      if (annotateAllCancelRequestedRef.current) {
+        showToast(`Annotate all cancelled (${completed} of ${total} sources completed).`);
+      } else {
+        showToast(
+          errors
+            ? `Annotate all done — ${errors} error(s).`
+            : `Annotate all complete (${total} sources).`,
+          errors ? "error" : "success",
+        );
+      }
+    } finally {
+      setAnnotateAllPending(false);
+      setAnnotateAllProgress(null);
+    }
+  };
+
+  const runAnnotateOne = async (extraInstructions: string) => {
+    const student = selectedStudent;
+    if (!student) return;
+
+    setAnnotateOnePending(true);
+    try {
+      const result = await runAnnotate(projectId, {
+        apiKey: apiKeyInput.trim(),
+        modelName: modelNameInput,
+        filename: student.filename,
+        extraInstructions,
+      });
+      if (!result.ok) {
+        showToast(result.error || "Annotation failed.", "error");
+        return;
+      }
+      if (result.comment_library) {
+        setCommentLibrary(result.comment_library);
+      }
+      setStudents((prev) => {
+        const updates = new Map(result.students.map((s) => [s.filename, s]));
+        return prev.map((s) => updates.get(s.filename) ?? s);
+      });
+      showToast(`Annotations complete for ${student.filename}.`);
+    } catch (e) {
+      showToast((e as Error).message || "Annotation failed.", "error");
+    } finally {
+      setAnnotateOnePending(false);
+    }
+  };
+
+  const handleAnnotateOptionsStart = (extraInstructions: string) => {
+    setAnnotateOptionsOpen(false);
+    const scope = annotateOptionsScope;
+    if (scope === "all") void runAnnotateAll(extraInstructions);
+    else void runAnnotateOne(extraInstructions);
+  };
+
   const runCheckThisSource = async () => {
     if (
       !selectedStudent ||
       checkThisSourcePending ||
       checkRunAllPending ||
       deleteSourcePending ||
-      deleteConfirmFilename
+      deleteConfirmFilename ||
+      annotateAllPending ||
+      annotateOnePending ||
+      annotateOptionsOpen
     ) {
       return;
     }
@@ -489,7 +696,15 @@ export default function ProjectWorkspacePage({ projectId }: Props) {
   };
 
   const openDeleteSourceConfirm = () => {
-    if (!selectedStudent || deleteSourcePending || checkRunAllPending || checkThisSourcePending) {
+    if (
+      !selectedStudent ||
+      deleteSourcePending ||
+      checkRunAllPending ||
+      checkThisSourcePending ||
+      annotateAllPending ||
+      annotateOnePending ||
+      annotateOptionsOpen
+    ) {
       return;
     }
     setDeleteConfirmFilename(selectedStudent.filename);
@@ -548,6 +763,8 @@ export default function ProjectWorkspacePage({ projectId }: Props) {
     <Box sx={{ height: "100vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
       <WorkspaceTopBar
         projectName={projectName}
+        apiKeyMissing={!apiKeyInput.trim()}
+        checkerScriptMissing={!checkerScript.trim()}
         onOpenSettings={(anchorEl) => setSettingsAnchorEl(anchorEl)}
         onCheckRunAll={runCheckAll}
         checkRunAllDisabled={
@@ -556,15 +773,53 @@ export default function ProjectWorkspacePage({ projectId }: Props) {
           checkRunAllPending ||
           checkThisSourcePending ||
           deleteSourcePending ||
-          Boolean(deleteConfirmFilename)
+          Boolean(deleteConfirmFilename) ||
+          annotateAllPending ||
+          annotateOnePending ||
+          annotateOptionsOpen
         }
         checkRunAllPending={checkRunAllPending}
+        onAnnotateAll={beginAnnotateAll}
+        annotateAllDisabled={
+          !apiKeyInput.trim() ||
+          students.length === 0 ||
+          checkRunAllPending ||
+          checkThisSourcePending ||
+          deleteSourcePending ||
+          Boolean(deleteConfirmFilename) ||
+          annotateAllPending ||
+          annotateOnePending ||
+          annotateOptionsOpen
+        }
+        annotateAllPending={annotateAllPending}
       />
 
       <CheckRunAllDialog
         open={checkRunAllPending}
         progress={checkRunAllProgress}
         onCancel={requestCheckRunAllCancel}
+      />
+      <CheckRunMatrixDialog
+        open={checkMatrixOpen}
+        onClose={() => setCheckMatrixOpen(false)}
+        students={studentsSorted}
+      />
+      <GradesSummaryDialog
+        open={gradesSummaryOpen}
+        onClose={() => setGradesSummaryOpen(false)}
+        students={studentsSorted}
+        commentLibrary={commentLibrary}
+      />
+      <AnnotateOptionsDialog
+        open={annotateOptionsOpen}
+        scope={annotateOptionsScope}
+        onClose={() => setAnnotateOptionsOpen(false)}
+        onStart={handleAnnotateOptionsStart}
+      />
+      <AnnotateAllDialog
+        open={annotateAllPending}
+        progress={annotateAllProgress}
+        onCancel={requestAnnotateAllCancel}
       />
       <DeleteSourceConfirmDialog
         open={deleteConfirmFilename !== null}
@@ -573,9 +828,25 @@ export default function ProjectWorkspacePage({ projectId }: Props) {
         onCancel={cancelDeleteSourceConfirm}
         onConfirm={confirmDeleteSource}
       />
+      <CommentLibraryDialog
+        open={commentLibraryOpen}
+        projectId={projectId}
+        onClose={() => setCommentLibraryOpen(false)}
+        onLibraryUpdated={() => {
+          void refreshWorkspace({ preserveSelection: true });
+        }}
+      />
+      <UploadSourcesDialog
+        open={uploadSourcesDialogOpen}
+        uploading={uploading}
+        onClose={() => setUploadSourcesDialogOpen(false)}
+        onConfirm={confirmUploadSources}
+      />
       <WorkspaceSettingsMenu
         anchorEl={settingsAnchorEl}
         open={settingsMenuOpen}
+        apiKeyMissing={!apiKeyInput.trim()}
+        checkerScriptMissing={!checkerScript.trim()}
         onClose={() => setSettingsAnchorEl(null)}
         onProjectSettings={openProjectSettings}
         onAiSettings={openAiSettings}
@@ -584,7 +855,7 @@ export default function ProjectWorkspacePage({ projectId }: Props) {
         }}
         onCommentLibrary={() => {
           setSettingsAnchorEl(null);
-          showToast("Rename project flow will be added next.");
+          setCommentLibraryOpen(true);
         }}
       />
       <ProjectSettingsDialog
@@ -619,12 +890,14 @@ export default function ProjectWorkspacePage({ projectId }: Props) {
         checkerError={checkerError}
         runResult={checkerRunResult}
         generating={checkerGenerating}
+        copyingPrompt={checkerPromptCopying}
         running={checkerRunning}
         saving={checkerSaving}
         onClose={closeCheckerDialog}
         onCheckerScriptChange={setCheckerScript}
         onCheckerContextChange={setCheckerContext}
         onGenerate={generateCheckerFromDialog}
+        onCopyPrompt={copyCheckerPromptFromDialog}
         onRun={runCheckerFromDialog}
         onSave={saveCheckerFromDialog}
       />
@@ -634,9 +907,12 @@ export default function ProjectWorkspacePage({ projectId }: Props) {
           students={studentsSorted}
           selectedFilename={selectedFilename}
           uploading={uploading}
-          fileInputRef={fileInputRef}
+          uploadDialogOpen={uploadSourcesDialogOpen}
+          commentLibrary={commentLibrary}
           onSelectFilename={setSelectedFilename}
-          onUploadFilesSelected={onUploadFilesSelected}
+          onOpenUploadSources={() => setUploadSourcesDialogOpen(true)}
+          onOpenCheckMatrix={() => setCheckMatrixOpen(true)}
+          onOpenGradesSummary={() => setGradesSummaryOpen(true)}
         />
 
         <Box sx={{ flex: 1, minWidth: 0, minHeight: 0, p: 0, overflow: "auto" }}>
@@ -661,11 +937,15 @@ export default function ProjectWorkspacePage({ projectId }: Props) {
           ) : (
             <SelectedSourceView
               student={selectedStudent}
+              commentLibrary={commentLibrary}
               checkerScriptPresent={Boolean(checkerScript.trim())}
+              canAnnotate={Boolean(apiKeyInput.trim())}
               workspaceBusy={workspaceCheckBusy}
               checkThisSourceRunning={checkThisSourcePending}
+              annotateThisSourceRunning={annotateOnePending}
               deletePending={deleteSourcePending}
               onCheckRunThisSource={runCheckThisSource}
+              onAnnotateThisSource={beginAnnotateThisSource}
               onDeleteSource={openDeleteSourceConfirm}
             />
           )}

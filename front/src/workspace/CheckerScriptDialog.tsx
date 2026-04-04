@@ -3,6 +3,7 @@ import {
   Alert,
   Box,
   Button,
+  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
@@ -11,13 +12,15 @@ import {
   Stack,
   TextField,
   Typography,
+  useTheme,
 } from "@mui/material";
 import AutoAwesomeRoundedIcon from "@mui/icons-material/AutoAwesomeRounded";
+import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded";
 import PlayArrowRoundedIcon from "@mui/icons-material/PlayArrowRounded";
 import Editor from "@monaco-editor/react";
 import type { RunCheckerResponse } from "../api";
 import CheckRunResults from "./CheckRunResults";
-import { borderRadius } from "../MuiTheme.tsx";
+import { borderRadius, colorsDark, colorsLight } from "../MuiTheme.tsx";
 
 type Props = {
   open: boolean;
@@ -26,20 +29,24 @@ type Props = {
   checkerError: string | null;
   runResult: RunCheckerResponse | null;
   generating: boolean;
+  copyingPrompt: boolean;
   running: boolean;
   saving: boolean;
   onClose: () => void;
   onCheckerScriptChange: (value: string) => void;
   onCheckerContextChange: (value: string) => void;
   onGenerate: () => void;
+  onCopyPrompt: () => void;
   onRun: () => void;
   onSave: () => void;
 };
 
 export default function CheckerScriptDialog(props: Props) {
+  const theme = useTheme();
   const [editorValue, setEditorValue] = useState(props.checkerScript);
   const hasUnsavedChanges = editorValue !== props.checkerScript;
-  const monacoThemeName = "checkmate-student-code";
+  const monacoThemeName =
+    theme.palette.mode === "dark" ? "checkmate-code-dark" : "checkmate-code-light";
 
   useEffect(() => {
     if (props.open) {
@@ -53,6 +60,8 @@ export default function CheckerScriptDialog(props: Props) {
       <DialogContent>
         <DialogContentText>
           The checker script is used to check a student's solution at runtime. It will output a JSON object describing the results of the check.
+          <br />
+          You may also copy the generation prompt to generate a checker yourself.
         </DialogContentText>
         <Stack spacing={1.5} sx={{ mt: 1 }}>
           <Box sx={{ borderRadius: borderRadius.small+"px", overflow: "hidden" }}>
@@ -61,15 +70,24 @@ export default function CheckerScriptDialog(props: Props) {
               defaultLanguage="python"
               language="python"
               beforeMount={(monaco) => {
-                monaco.editor.defineTheme(monacoThemeName, {
+                monaco.editor.defineTheme("checkmate-code-dark", {
                   base: "vs-dark",
                   inherit: true,
                   rules: [],
                   colors: {
-                    "editor.background": "#1e1f24",
+                    "editor.background": colorsDark.surfaceContainerLow,
+                  },
+                });
+                monaco.editor.defineTheme("checkmate-code-light", {
+                  base: "vs",
+                  inherit: true,
+                  rules: [],
+                  colors: {
+                    "editor.background": colorsLight.surfaceContainerLow,
                   },
                 });
               }}
+              key={monacoThemeName}
               theme={monacoThemeName}
               options={{
                 minimap: { enabled: false },
@@ -118,7 +136,7 @@ export default function CheckerScriptDialog(props: Props) {
       <DialogActions>
         <Button
           variant="outlined"
-          startIcon={<AutoAwesomeRoundedIcon />}
+          startIcon={props.generating ? <CircularProgress size={16} color="inherit" /> : <AutoAwesomeRoundedIcon />}
           onClick={() => {
             props.onCheckerScriptChange(editorValue);
             props.onGenerate();
@@ -126,6 +144,14 @@ export default function CheckerScriptDialog(props: Props) {
           disabled={props.generating || props.running || props.saving}
         >
           {props.generating ? "Generating..." : "Generate with AI"}
+        </Button>
+        <Button
+          variant="outlined"
+          startIcon={<ContentCopyRoundedIcon />}
+          onClick={props.onCopyPrompt}
+          disabled={props.generating || props.copyingPrompt || props.running || props.saving}
+        >
+          {props.copyingPrompt ? "Copying..." : "Copy generation prompt"}
         </Button>
         <Button
           variant="outlined"

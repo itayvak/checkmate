@@ -18,7 +18,7 @@ from ...db import (
     save_grading_session,
     save_project,
 )
-from ...gemini_client import DEFAULT_MODEL, SUPPORTED_MODELS, review_student_code
+from ...llm import get_llm_provider, review_student_code
 from ...utils import batch_output_for_matching_filename, parse_student_identity
 from . import bp
 from .helpers import (
@@ -195,7 +195,6 @@ def run_auto_check(project_id: str):
         ann = ann_by_fn.get(fn)
         ann_d: Optional[dict[str, Any]] = (
             {
-                "grade": ann.get("grade") or "",
                 "summary": ann.get("summary") or "",
                 "annotations": ann.get("annotations") or [],
             }
@@ -213,13 +212,21 @@ def run_auto_annotate(project_id: str):
     if not project:
         return jsonify({"ok": False, "error": "Unknown project id."}), 404
 
+    provider = get_llm_provider()
     api_key = (request.form.get("api_key") or "").strip()
     if not api_key:
-        return jsonify({"ok": False, "error": "A Gemini API key is required."}), 400
+        return jsonify(
+            {"ok": False, "error": f"An API key is required ({provider.label})."}
+        ), 400
 
-    model_name = (request.form.get("model_name") or DEFAULT_MODEL).strip()
-    if model_name not in SUPPORTED_MODELS:
-        return jsonify({"ok": False, "error": "Please choose a supported Gemini model."}), 400
+    model_name = (request.form.get("model_name") or provider.default_model).strip()
+    if model_name not in provider.supported_models:
+        return jsonify(
+            {
+                "ok": False,
+                "error": f"Please choose a supported model ({provider.label}).",
+            }
+        ), 400
 
     student_set = load_project_source_set(project_id) or {}
     rows = student_set.get("files")
@@ -284,7 +291,7 @@ def run_auto_annotate(project_id: str):
                 comment_library=comment_library,
             )
         except Exception as e:
-            review = {"grade": "fail", "summary": f"Processing error: {e}", "annotations": []}
+            review = {"summary": f"Processing error: {e}", "annotations": []}
 
         # Resolve annotations to comment_id references only (creating new library entries if needed)
         resolved_annotations: list[dict[str, Any]] = []
@@ -315,10 +322,13 @@ def run_auto_annotate(project_id: str):
 
                 teacher_text = str(nc.get("teacher_text") or "").strip()
                 try:
-                    created = create_project_comment(project_id, message=msg, teacher_text=teacher_text, key=None)
+                    pts = max(0, int(nc.get("points") or 0))
+                except (TypeError, ValueError):
+                    pts = 0
+                try:
+                    created = create_project_comment(project_id, message=msg, teacher_text=teacher_text, points=pts, key=None)
                 except Exception:
-                    # If key uniqueness fails or insert fails, fallback to message-only dedupe on refresh
-                    created = create_project_comment(project_id, message=msg, teacher_text=teacher_text, key=None)
+                    created = create_project_comment(project_id, message=msg, teacher_text=teacher_text, points=pts, key=None)
 
                 new_id = str(created.get("id") or "").strip()
                 if new_id:
@@ -335,7 +345,6 @@ def run_auto_annotate(project_id: str):
             "project_name": project_name,
             "code": student_code,
             "code_lines": student_code.split("\n"),
-            "grade": review["grade"],
             "summary": review["summary"],
             "annotations": review["annotations"],
         }
@@ -429,7 +438,6 @@ def run_auto_annotate(project_id: str):
         item_a = results.get(s_id_a)
         ann_d_a: Optional[dict[str, Any]] = (
             {
-                "grade": item_a.get("grade") or "",
                 "summary": item_a.get("summary") or "",
                 "annotations": item_a.get("annotations") or [],
             }
@@ -438,5 +446,5 @@ def run_auto_annotate(project_id: str):
         )
         students_out_a.append({"filename": fn_a, "code": str(row.get("code") or ""), "check": check_d_a, "annotation": ann_d_a})
 
-    return jsonify({"ok": True, "students": students_out_a})
+    return jsonify({"ok": True, "students": students_out_a, "comment_library": comment_library})
 

@@ -12,7 +12,6 @@ import {
   Stack,
   TextField,
   Typography,
-  useTheme,
 } from "@mui/material";
 import AutoAwesomeRoundedIcon from "@mui/icons-material/AutoAwesomeRounded";
 import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded";
@@ -20,7 +19,7 @@ import PlayArrowRoundedIcon from "@mui/icons-material/PlayArrowRounded";
 import Editor from "@monaco-editor/react";
 import type { RunCheckerResponse } from "../api";
 import CheckRunResults from "./CheckRunResults";
-import { borderRadius, colorsDark, colorsLight } from "../MuiTheme.tsx";
+import { borderRadius, useAppColors } from "../MuiTheme.tsx";
 
 type Props = {
   open: boolean;
@@ -42,11 +41,11 @@ type Props = {
 };
 
 export default function CheckerScriptDialog(props: Props) {
-  const theme = useTheme();
+  const colors = useAppColors();
   const [editorValue, setEditorValue] = useState(props.checkerScript);
   const hasUnsavedChanges = editorValue !== props.checkerScript;
   const monacoThemeName =
-    theme.palette.mode === "dark" ? "checkmate-code-dark" : "checkmate-code-light";
+    colors.mode === "dark" ? "checkmate-code-dark" : "checkmate-code-light";
 
   useEffect(() => {
     if (props.open) {
@@ -75,7 +74,7 @@ export default function CheckerScriptDialog(props: Props) {
                   inherit: true,
                   rules: [],
                   colors: {
-                    "editor.background": colorsDark.surfaceContainerLow,
+                    "editor.background": colors.surfaceContainerLow,
                   },
                 });
                 monaco.editor.defineTheme("checkmate-code-light", {
@@ -83,7 +82,7 @@ export default function CheckerScriptDialog(props: Props) {
                   inherit: true,
                   rules: [],
                   colors: {
-                    "editor.background": colorsLight.surfaceContainerLow,
+                    "editor.background": colors.surfaceContainerLow,
                   },
                 });
               }}

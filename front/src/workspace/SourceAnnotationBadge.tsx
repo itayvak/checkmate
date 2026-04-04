@@ -2,7 +2,7 @@ import { Box, Tooltip } from "@mui/material";
 import type { ProjectComment, WorkspaceStudent } from "../api";
 import { CloseRounded, CommentRounded } from "@mui/icons-material";
 import { computeAnnotationGrade } from "./checkRunStats";
-import { useTheme } from "@mui/material";
+import { useAppColors } from "../MuiTheme";
 
 type Props = {
   annotation: WorkspaceStudent["annotation"];
@@ -10,7 +10,7 @@ type Props = {
 };
 
 export default function SourceAnnotationBadge({ annotation, commentLibrary }: Props) {
-  const theme = useTheme();
+  const colors = useAppColors();
   let tooltipTitle: string;
   let fillPercent: number;
   let fillKind: "gradedPass" | "gradedFail" | "neutral" | "none";
@@ -33,9 +33,9 @@ export default function SourceAnnotationBadge({ annotation, commentLibrary }: Pr
 
   const fillBg =
     fillKind === "gradedPass"
-      ? theme.palette.success.main
+      ? colors.success
       : fillKind === "gradedFail"
-        ? theme.palette.error.main
+        ? colors.error
         : "transparent";
 
   return (

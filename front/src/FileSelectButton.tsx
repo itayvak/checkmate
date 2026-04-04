@@ -7,7 +7,7 @@ import {
 import { Box, IconButton, Stack, useTheme } from "@mui/material";
 import Button, { type ButtonProps } from "@mui/material/Button";
 import Typography from "@mui/material/Typography";
-import { borderRadius, font } from "./MuiTheme";
+import { borderRadius, font, useAppColors } from "./MuiTheme";
 
 type CommonProps = Omit<ButtonProps, "onChange" | "children"> & {
   accept?: string;
@@ -42,7 +42,7 @@ type InternalPick = CommonProps & {
 };
 
 export default function FileSelectButton(props: FileSelectButtonProps) {
-  const muiTheme = useTheme();
+  const colors = useAppColors();
   const isMulti = props.multiple === true;
 
   const {
@@ -164,8 +164,8 @@ export default function FileSelectButton(props: FileSelectButtonProps) {
             textAlign: "left",
             borderRadius: `${borderRadius.small}px`,
             ...(!hasSelection && {
-              borderColor: muiTheme.palette.divider,
-              color: muiTheme.palette.text.secondary,
+              borderColor: colors.divider,
+              color: colors.onSurfaceVariant,
             }),
             ...sx,
           }}

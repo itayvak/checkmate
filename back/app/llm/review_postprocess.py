@@ -17,26 +17,43 @@ def normalize_student_improvement(improvement: Any) -> str:
 
 def grade_from_review_annotations(
     valid_anns: list[dict[str, Any]],
-    lib_points_by_id: dict[str, int],
+    lib_points_and_max_by_id: dict[str, tuple[int, int]],
 ) -> tuple[int, bool]:
     """
-    Match front-end checkRunStats.computeAnnotationGrade: 100 − sum(deductions), pass if ≥ 70.
-    For library comments use project library points; for new_comment use the model's points field.
+    Match front-end checkRunStats.computeAnnotationGrade: 100 − capped sum of deductions, pass if ≥ 70.
+    lib_points_and_max_by_id maps comment_id -> (per-annotation points, max total for that id).
+    Unresolved new_comment entries share a cap of 100 per distinct (title, details) pair (same as AI-created library rows).
     """
     if not valid_anns:
         return 100, True
+    used: dict[str, int] = {}
     deduction = 0
     for ann in valid_anns:
         cid = ann.get("comment_id")
         if isinstance(cid, str) and cid.strip():
-            deduction += max(0, int(lib_points_by_id.get(cid.strip(), 0)))
+            k = cid.strip()
+            pts, cap = lib_points_and_max_by_id.get(k, (0, 0))
+            u = used.get(k, 0)
+            room = max(0, cap - u)
+            d = min(max(0, pts), room)
+            used[k] = u + d
+            deduction += d
             continue
         nc = ann.get("new_comment")
         if isinstance(nc, dict):
             try:
-                deduction += max(0, int(nc.get("points") or 0))
+                pts = max(0, int(nc.get("points") or 0))
             except (TypeError, ValueError):
-                pass
+                pts = 0
+            title = str(nc.get("title") or nc.get("message") or "").strip()
+            det = str(nc.get("details") or "").strip()
+            k = f"__new__:{title}\n{det}"
+            cap = 100
+            u = used.get(k, 0)
+            room = max(0, cap - u)
+            step = min(pts, room)
+            used[k] = u + step
+            deduction += step
     score = max(0, 100 - deduction)
     return score, score >= 70
 

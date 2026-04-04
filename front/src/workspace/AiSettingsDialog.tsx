@@ -61,7 +61,7 @@ export default function AiSettingsDialog(props: Props) {
             >
               {props.modelOptions.map((model) => (
                 <MenuItem key={model} value={model}>
-                  {model}
+                  {model.replaceAll("-", " ").split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ').replaceAll("Preview", "(Preview)")}
                 </MenuItem>
               ))}
             </Select>

@@ -937,7 +937,17 @@ export default function ProjectWorkspacePage({ projectId }: Props) {
           ) : (
             <SelectedSourceView
               student={selectedStudent}
+              projectId={projectId}
               commentLibrary={commentLibrary}
+              onAnnotationsChanged={() => {
+                void refreshWorkspace({ preserveSelection: true })
+                  .then(() => {
+                    showToast("Annotation updated.");
+                  })
+                  .catch((e) => {
+                    showToast((e as Error).message || "Failed to refresh workspace.", "error");
+                  });
+              }}
               checkerScriptPresent={Boolean(checkerScript.trim())}
               canAnnotate={Boolean(apiKeyInput.trim())}
               workspaceBusy={workspaceCheckBusy}

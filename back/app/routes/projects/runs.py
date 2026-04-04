@@ -20,6 +20,7 @@ from ...db import (
 )
 from ...llm import get_llm_provider, review_student_code
 from ...utils import batch_output_for_matching_filename, parse_student_identity
+from .annotation_payload import annotation_dict_for_api
 from . import bp
 from .helpers import (
     _PER_STUDENT_TIMEOUT_SEC,
@@ -194,12 +195,7 @@ def run_auto_check(project_id: str):
 
         ann = ann_by_fn.get(fn)
         ann_d: Optional[dict[str, Any]] = (
-            {
-                "summary": ann.get("summary") or "",
-                "annotations": ann.get("annotations") or [],
-            }
-            if ann
-            else None
+            annotation_dict_for_api(ann) if isinstance(ann, dict) else None
         )
         students_out.append({"filename": fn, "code": str(row.get("code") or ""), "check": check_d, "annotation": ann_d})
 
@@ -257,15 +253,19 @@ def run_auto_annotate(project_id: str):
     lib_by_id: dict[str, dict[str, Any]] = {
         str(c.get("id")): c for c in comment_library if isinstance(c, dict) and c.get("id")
     }
-    # Index by normalized message for quick reuse/dedupe
-    lib_id_by_message: dict[str, str] = {}
+    # Index by (title, details) signature for quick reuse/dedupe
+    def _comment_sig(title: str, details: str) -> str:
+        return f"{title.strip()}\n{details.strip()}"
+
+    lib_id_by_signature: dict[str, str] = {}
     for c in comment_library:
         if not isinstance(c, dict):
             continue
         cid = str(c.get("id") or "").strip()
-        msg = str(c.get("message") or "").strip()
-        if cid and msg:
-            lib_id_by_message[msg] = cid
+        t = str(c.get("title") or c.get("message") or "").strip()
+        d = str(c.get("details") or "").strip()
+        if cid and t:
+            lib_id_by_signature[_comment_sig(t, d)] = cid
 
     for row in rows_to_run:
         if not isinstance(row, dict):
@@ -291,7 +291,11 @@ def run_auto_annotate(project_id: str):
                 comment_library=comment_library,
             )
         except Exception as e:
-            review = {"summary": f"Processing error: {e}", "annotations": []}
+            review = {
+                "ai_improvement": "",
+                "annotation_error": f"Processing error: {e}",
+                "annotations": [],
+            }
 
         # Resolve annotations to comment_id references only (creating new library entries if needed)
         resolved_annotations: list[dict[str, Any]] = []
@@ -311,11 +315,12 @@ def run_auto_annotate(project_id: str):
 
             nc = ann.get("new_comment")
             if isinstance(nc, dict):
-                msg = str(nc.get("message") or "").strip()
-                if not msg:
+                t = str(nc.get("title") or nc.get("message") or "").strip()
+                d = str(nc.get("details") or "").strip()
+                if not t:
                     continue
-                # If an identical message already exists, reuse it
-                existing_id = lib_id_by_message.get(msg)
+                sig = _comment_sig(t, d)
+                existing_id = lib_id_by_signature.get(sig)
                 if existing_id:
                     resolved_annotations.append({"line": line, "comment_id": existing_id})
                     continue
@@ -326,15 +331,31 @@ def run_auto_annotate(project_id: str):
                 except (TypeError, ValueError):
                     pts = 0
                 try:
-                    created = create_project_comment(project_id, message=msg, teacher_text=teacher_text, points=pts, key=None)
+                    created = create_project_comment(
+                        project_id,
+                        title=t,
+                        details=d,
+                        teacher_text=teacher_text,
+                        points=pts,
+                        max_points=100,
+                        key=None,
+                    )
                 except Exception:
-                    created = create_project_comment(project_id, message=msg, teacher_text=teacher_text, points=pts, key=None)
+                    created = create_project_comment(
+                        project_id,
+                        title=t,
+                        details=d,
+                        teacher_text=teacher_text,
+                        points=pts,
+                        max_points=100,
+                        key=None,
+                    )
 
                 new_id = str(created.get("id") or "").strip()
                 if new_id:
                     comment_library.append(created)
                     lib_by_id[new_id] = created
-                    lib_id_by_message[msg] = new_id
+                    lib_id_by_signature[sig] = new_id
                     resolved_annotations.append({"line": line, "comment_id": new_id})
 
         review["annotations"] = resolved_annotations
@@ -345,9 +366,11 @@ def run_auto_annotate(project_id: str):
             "project_name": project_name,
             "code": student_code,
             "code_lines": student_code.split("\n"),
-            "summary": review["summary"],
-            "annotations": review["annotations"],
+            "ai_improvement": review.get("ai_improvement") or "",
+            "annotations": review.get("annotations") or [],
         }
+        if review.get("annotation_error"):
+            item["annotation_error"] = review["annotation_error"]
         if auto_check_output:
             item["auto_check_output"] = auto_check_output
 
@@ -437,12 +460,7 @@ def run_auto_annotate(project_id: str):
         )
         item_a = results.get(s_id_a)
         ann_d_a: Optional[dict[str, Any]] = (
-            {
-                "summary": item_a.get("summary") or "",
-                "annotations": item_a.get("annotations") or [],
-            }
-            if item_a
-            else None
+            annotation_dict_for_api(item_a) if isinstance(item_a, dict) else None
         )
         students_out_a.append({"filename": fn_a, "code": str(row.get("code") or ""), "check": check_d_a, "annotation": ann_d_a})
 

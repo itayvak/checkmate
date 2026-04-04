@@ -14,6 +14,7 @@ from ...db import (
     list_project_comments,
     delete_project,
 )
+from .annotation_payload import annotation_dict_for_api
 from . import bp
 from .helpers import _decode_upload, _format_checker_run_output, _normalize_title
 
@@ -167,12 +168,7 @@ def project_workspace_data(project_id: str):
 
         ann = ann_by_fn.get(filename)
         ann_d: Optional[dict[str, Any]] = (
-            {
-                "summary": ann.get("summary") or "",
-                "annotations": ann.get("annotations") or [],
-            }
-            if ann
-            else None
+            annotation_dict_for_api(ann) if isinstance(ann, dict) else None
         )
 
         students.append(

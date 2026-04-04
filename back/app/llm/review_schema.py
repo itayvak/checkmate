@@ -26,12 +26,25 @@ REVIEW_SCHEMA = {
                         "type": "object",
                         "description": "Create a new comment in the project's comment library when none match",
                         "properties": {
-                            "message": {"type": "string", "description": "Hebrew comment text to store in the library"},
+                            "title": {
+                                "type": "string",
+                                "description": (
+                                    "Short Hebrew label for the issue (2–5 words). "
+                                    "Shown on every annotation; keep it stable for this comment type."
+                                ),
+                            },
+                            "details": {
+                                "type": "string",
+                                "description": (
+                                    "Hebrew explanation of what the student should do (1–2 short sentences). "
+                                    "Shown to the student only once per comment type per submission when repeated on multiple lines."
+                                ),
+                            },
                             "teacher_text": {
                                 "type": "string",
                                 "description": (
                                     "Optional Hebrew notes for teachers only (not shown to students). "
-                                    "Must be generic and reusable like the message: when to pick this comment, "
+                                    "Must be generic and reusable: when to pick this comment, "
                                     "typical mistake pattern. Do NOT name files, lines, variables, or specifics of one submission."
                                 ),
                             },
@@ -45,7 +58,7 @@ REVIEW_SCHEMA = {
                                 ),
                             },
                         },
-                        "required": ["message", "points"],
+                        "required": ["title", "points"],
                     },
                 },
                 "required": ["line"],

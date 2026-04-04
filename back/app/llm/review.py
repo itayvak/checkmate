@@ -5,11 +5,7 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING, Any
 
-from .review_postprocess import (
-    compose_student_summary,
-    grade_from_review_annotations,
-    normalize_student_improvement,
-)
+from .review_postprocess import normalize_student_improvement
 from .review_schema import REVIEW_SCHEMA
 
 if TYPE_CHECKING:
@@ -76,20 +72,20 @@ You MUST follow them exactly when grading and writing comments.
         if not isinstance(c, dict):
             continue
         cid = str(c.get("id") or "").strip()
-        msg = str(c.get("message") or "").strip()
-        if not cid or not msg:
+        title = str(c.get("title") or c.get("message") or "").strip()
+        details = str(c.get("details") or "").strip()
+        if not cid or not title:
             continue
         lib_rows.append(
             {
                 "id": cid,
-                "message": msg,
+                "title": title,
+                "details": details,
                 "points": int(c.get("points") or 0),
             }
         )
     library_block = ""
-    lib_points_by_id: dict[str, int] = {}
     if lib_rows:
-        lib_points_by_id = {str(row["id"]): int(row["points"]) for row in lib_rows}
         library_block = f"""
 COMMENT LIBRARY (use these predefined comments when possible):
 The following list is a set of allowed comments. Each entry includes its point deduction value.
@@ -181,35 +177,25 @@ If you create a new comment:
 - Avoid including student-specific names/values.
 
 Language requirements:
-- `new_comment.message` MUST be Hebrew.
+- `new_comment.title` and `new_comment.details` MUST be Hebrew.
 - If you provide `new_comment.teacher_text`, it MUST be Hebrew.
 
 `new_comment.teacher_text` (private notes for teachers / reuse hints):
 - Write **only** in Hebrew.
-- Must be **as reusable** as `message`: describe the *kind* of issue and when this library line applies (e.g. typical mistake pattern), not this student's work.
+- Must be **as reusable** as the student-facing fields: describe the *kind* of issue and when this library line applies (e.g. typical mistake pattern), not this student's work.
 - Do **NOT** mention: filenames, submission names, line numbers, specific variable/function/class names from the student's code, concrete I/O or test data from one submission, or phrases that tie the note to "this code", "here", "this file", or "this case".
 - Do **NOT** restate details that belong in the annotation context; keep notes short and library-oriented.
 
-The comment message must:
+The student-facing comment has two fields:
 
-• Describe what MUST be done (instructional phrasing)
-• NOT describe what the student did wrong
-• Follow EXACT format:
-
-"<תיאור קצר של הבעיה> - <הסבר מעט יותר מפורט>"
-
-Rules:
-
-* First part: 2–5 words.
-* Then a dash ("-").
-* Then a short clarification.
-* Maximum 1–2 short sentences total.
-* Be precise and concrete.
-* Do not praise correct code.
-* Do not add comments when no real problem exists.
+• `title`: 2–5 words — short label for the issue (shown on every line where this comment applies).
+• `details`: 1–2 short sentences — what the student MUST do (instructional phrasing), NOT what they did wrong.
+• Be precise and concrete. Do not praise correct code.
+• Do not add comments when no real problem exists.
 
 Example:
-"המרת קלט מוקדמת - יש לבדוק תחילה האם הוזן 'exit' לפני המרה ל־int כדי למנוע קריסה."
+- title: "המרת קלט מוקדמת"
+- details: "יש לבדוק תחילה האם הוזן 'exit' לפני המרה ל־int כדי למנוע קריסה."
 
 LINE NUMBER RULES:
 * Line numbers MUST be integers.
@@ -300,8 +286,8 @@ Constraints:
 
         nc = ann.get("new_comment")
         if isinstance(nc, dict):
-            msg = nc.get("message")
-            if isinstance(msg, str) and msg.strip():
+            raw_title = nc.get("title") if nc.get("title") is not None else nc.get("message")
+            if isinstance(raw_title, str) and raw_title.strip():
                 try:
                     pts = max(0, int(nc.get("points") or 0))
                 except (TypeError, ValueError):
@@ -310,17 +296,15 @@ Constraints:
                     {
                         "line": ann.get("line"),
                         "new_comment": {
-                            "message": msg.strip(),
+                            "title": raw_title.strip(),
+                            "details": str(nc.get("details") or "").strip(),
                             "teacher_text": str(nc.get("teacher_text") or "").strip(),
                             "points": pts,
                         },
                     }
                 )
 
-    score, passed = grade_from_review_annotations(valid_anns, lib_points_by_id)
-    summary = compose_student_summary(improvement, score=score, passed=passed)
-
     return {
-        "summary": summary,
+        "ai_improvement": improvement,
         "annotations": valid_anns,
     }

@@ -31,7 +31,10 @@ export type WorkspaceStudent = {
     check_cases?: CheckCase[];
   } | null;
   annotation: {
-    summary?: string;
+    /** Normalized LLM improvement text; pass/fail lines are composed on the client. */
+    ai_improvement: string;
+    /** Set when auto-annotation failed; full message for the teacher. */
+    annotation_error?: string;
     annotations?: LineAnnotation[];
   } | null;
 };
@@ -40,9 +43,14 @@ export type ProjectComment = {
   id: string;
   project_id: string;
   key: string | null;
-  message: string;
+  /** Short label shown on every annotation of this type. */
+  title: string;
+  /** Longer explanation; UI may show this only on the first annotation per type per source. */
+  details: string;
   teacher_text: string;
   points: number;
+  /** Max total points that can be deducted for this comment_id for one student (repeated annotations cap). */
+  max_points: number;
   created_at: string;
   updated_at: string;
 };
@@ -356,15 +364,17 @@ export async function listProjectComments(projectId: string): Promise<ProjectCom
 
 export async function createProjectComment(
   projectId: string,
-  params: { message: string; teacher_text?: string; points?: number },
+  params: { title: string; details?: string; teacher_text?: string; points?: number; max_points?: number },
 ): Promise<CreateCommentResponse> {
   const res = await fetch(`/api/projects/${encodeURIComponent(projectId)}/comments`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      message: params.message,
+      title: params.title,
+      details: params.details ?? "",
       teacher_text: params.teacher_text ?? "",
       points: params.points ?? 0,
+      max_points: params.max_points ?? 100,
     }),
   });
   return (await res.json()) as CreateCommentResponse;
@@ -373,7 +383,7 @@ export async function createProjectComment(
 export async function updateProjectComment(
   projectId: string,
   commentId: string,
-  params: { message: string; teacher_text: string; points?: number },
+  params: { title: string; details: string; teacher_text: string; points?: number; max_points?: number },
 ): Promise<UpdateCommentResponse> {
   const res = await fetch(
     `/api/projects/${encodeURIComponent(projectId)}/comments/${encodeURIComponent(commentId)}`,
@@ -381,9 +391,11 @@ export async function updateProjectComment(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        message: params.message,
+        title: params.title,
+        details: params.details,
         teacher_text: params.teacher_text,
         points: params.points ?? 0,
+        max_points: params.max_points ?? 100,
       }),
     },
   );
@@ -399,5 +411,129 @@ export async function deleteProjectComment(
     { method: "POST" },
   );
   return (await res.json()) as DeleteCommentResponse;
+}
+
+/** Parsed row from a shared comment-library spreadsheet (matches export columns). */
+export type CommentLibraryImportRow = {
+  title: string;
+  details: string;
+  teacher_text: string;
+  points: number;
+  max_points: number;
+  sheet_row?: number;
+};
+
+export type CommentLibraryImportPreviewResponse = {
+  ok: true;
+  rows: CommentLibraryImportRow[];
+  skipped: { sheet_row: number; reason: string }[];
+};
+
+export async function previewCommentLibraryImport(
+  projectId: string,
+  file: File,
+): Promise<CommentLibraryImportPreviewResponse> {
+  const fd = new FormData();
+  fd.append("file", file);
+  const res = await fetch(`/api/projects/${encodeURIComponent(projectId)}/comments/import/preview`, {
+    method: "POST",
+    body: fd,
+  });
+  const json = (await res.json()) as
+    | CommentLibraryImportPreviewResponse
+    | { ok: false; error: string; skipped?: { sheet_row: number; reason: string }[] };
+  if (!res.ok || !json.ok || !("rows" in json)) {
+    throw new Error("error" in json && json.error ? json.error : "Preview failed.");
+  }
+  return json;
+}
+
+export type CommentLibraryImportCommitResult = {
+  comments: ProjectComment[];
+  errors?: { index: number; error: string }[] | null;
+};
+
+export async function commitCommentLibraryImport(
+  projectId: string,
+  rows: CommentLibraryImportRow[],
+): Promise<CommentLibraryImportCommitResult> {
+  const payload = rows.map(({ title, details, teacher_text, points, max_points }) => ({
+    title,
+    details,
+    teacher_text,
+    points,
+    max_points,
+  }));
+  const res = await fetch(`/api/projects/${encodeURIComponent(projectId)}/comments/import`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ rows: payload }),
+  });
+  const json = (await res.json()) as { ok?: boolean; comments?: ProjectComment[]; errors?: { index: number; error: string }[] | null; error?: string };
+  if (!res.ok || !json.ok) {
+    throw new Error(json.error || "Import failed.");
+  }
+  return {
+    comments: json.comments ?? [],
+    errors: json.errors,
+  };
+}
+
+/** Download the comment library as a standard .xlsx for sharing with other teachers. */
+export async function downloadProjectCommentLibraryExport(projectId: string): Promise<void> {
+  const res = await fetch(`/api/projects/${encodeURIComponent(projectId)}/comments/export`);
+  if (!res.ok) {
+    let message = "Export failed.";
+    try {
+      const j = (await res.json()) as { error?: string };
+      if (j.error) message = j.error;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(message);
+  }
+  const blob = await res.blob();
+  const cd = res.headers.get("Content-Disposition");
+  let filename = "comment_library_comments.xlsx";
+  if (cd) {
+    const m = /filename\*=UTF-8''([^;]+)|filename="([^"]+)"/i.exec(cd);
+    const raw = m?.[1] ?? m?.[2];
+    if (raw) {
+      try {
+        filename = decodeURIComponent(raw);
+      } catch {
+        filename = raw;
+      }
+    }
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.rel = "noopener";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+/** Replace or add a line annotation that references the comment library (`comment_id`). */
+export type AddProjectAnnotationResponse =
+  | { ok: true; annotation: { annotations?: LineAnnotation[]; ai_improvement?: string } }
+  | { ok: false; error: string };
+
+export async function addProjectAnnotation(
+  projectId: string,
+  params: { filename: string; line: number; commentId: string },
+): Promise<AddProjectAnnotationResponse> {
+  const fd = new FormData();
+  fd.append("only_filename", params.filename);
+  fd.append("line", String(params.line));
+  fd.append("comment_id", params.commentId);
+  const res = await fetch(`/api/projects/${encodeURIComponent(projectId)}/annotations/add`, {
+    method: "POST",
+    body: fd,
+  });
+  return (await res.json()) as AddProjectAnnotationResponse;
 }
 

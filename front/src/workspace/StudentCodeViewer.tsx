@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, alpha, Paper, Typography, useTheme } from "@mui/material";
+import { Alert, Button, Paper, Typography } from "@mui/material";
 import Editor from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
-import type { LineAnnotation, ProjectComment } from "../api";
-import { colorsDark, colorsLight } from "../MuiTheme";
+import { addProjectAnnotation, type LineAnnotation, type ProjectComment } from "../api";
+import { useAppColors } from "../MuiTheme";
+import ReplaceStaleAnnotationDialog from "./ReplaceStaleAnnotationDialog";
+import { CommentRounded } from "@mui/icons-material";
 
 /** Inset cards from rail edges + small horizontal nudge so selection stays inside the scrollport. */
 const ANNOTATION_RAIL_CARD_INSET = { left: 16, right: 16 } as const;
@@ -15,49 +17,100 @@ type Props = {
   code: string;
   annotations?: LineAnnotation[];
   commentLibrary: ProjectComment[];
+  projectId: string;
+  sourceFilename: string;
+  workspaceBusy?: boolean;
+  onAnnotationsChanged?: () => void;
 };
 
-function resolveLineAnnotationText(a: LineAnnotation, byId: Map<string, string>): string {
-  const direct = a.comment != null && String(a.comment).trim() !== "" ? String(a.comment) : "";
-  if (direct) return direct;
-  const cid = a.comment_id != null ? String(a.comment_id).trim() : "";
-  if (cid) return byId.get(cid) ?? "(deleted comment)";
-  return "";
+type ResolvedLineComment = {
+  title: string;
+  details: string;
+  showDetails: boolean;
+  /** `comment_id` points to a library entry that no longer exists. */
+  isStaleLibraryRef?: boolean;
+};
+
+function resolveLibraryAnnotation(
+  cid: string,
+  byId: Map<string, ProjectComment>,
+  seenCommentIds: Set<string>,
+): ResolvedLineComment {
+  const lib = byId.get(cid);
+  if (!lib) {
+    return {
+      title: "(deleted comment)",
+      details: "",
+      showDetails: false,
+      isStaleLibraryRef: true,
+    };
+  }
+  const t = (lib.title || "").trim() || "(deleted comment)";
+  const det = (lib.details || "").trim();
+  const first = !seenCommentIds.has(cid);
+  seenCommentIds.add(cid);
+  return {
+    title: t,
+    details: det,
+    showDetails: first && det.length > 0,
+    isStaleLibraryRef: false,
+  };
 }
 
 function buildLineAnnotationMap(
   annotations: LineAnnotation[] | undefined,
   commentLibrary: ProjectComment[],
-): Map<number, string> {
-  const byId = new Map(commentLibrary.map((c) => [c.id, c.message]));
-  const map = new Map<number, string>();
-  for (const a of annotations ?? []) {
+): Map<number, ResolvedLineComment> {
+  const byId = new Map(commentLibrary.map((c) => [c.id, c]));
+  const sorted = [...(annotations ?? [])]
+    .filter((a) => a.line != null)
+    .sort((a, b) => Number(a.line) - Number(b.line));
+  const seenIds = new Set<string>();
+  const map = new Map<number, ResolvedLineComment>();
+  for (const a of sorted) {
     if (a.line == null) continue;
-    const ln = Number(a.line);
+    const ln = Math.floor(Number(a.line));
     if (!Number.isFinite(ln) || ln < 1) continue;
-    const msg = resolveLineAnnotationText(a, byId);
-    if (msg) map.set(Math.floor(ln), msg);
+
+    const direct = a.comment != null && String(a.comment).trim() !== "" ? String(a.comment).trim() : "";
+    if (direct) {
+      map.set(ln, { title: direct, details: "", showDetails: true, isStaleLibraryRef: false });
+      continue;
+    }
+    const cid = a.comment_id != null ? String(a.comment_id).trim() : "";
+    if (!cid) continue;
+    map.set(ln, resolveLibraryAnnotation(cid, byId, seenIds));
   }
   return map;
 }
 
 function InlineAnnotationCard({
   lineNum,
-  text,
+  title,
+  details,
+  showDetails,
   active,
+  staleLibraryRef,
+  replaceDisabled,
   onSelect,
+  onReplaceRequest,
 }: {
   lineNum: number;
-  text: string;
+  title: string;
+  details: string;
+  showDetails: boolean;
   active: boolean;
+  staleLibraryRef?: boolean;
+  replaceDisabled?: boolean;
   onSelect: () => void;
+  onReplaceRequest?: () => void;
 }) {
-  const theme = useTheme();
+  const colors = useAppColors();
   return (
     <Alert
       onClick={(e) => {
         e.stopPropagation();
-        onSelect();
+        staleLibraryRef ? onReplaceRequest?.() : onSelect();
       }}
       severity="error"
       icon={false}
@@ -67,23 +120,44 @@ function InlineAnnotationCard({
         borderStyle: "solid",
         borderWidth: "2px",
         borderColor: active
-          ? theme.palette.error.main
-          : alpha(theme.palette.error.main, 0.45),
+          ? colors.error
+          : colors.errorContainer,
         boxShadow: active ? 3 : 0,
         transition: "border-color 0.12s ease, box-shadow 0.12s ease",
       }}
       dir="rtl"
     >
-      <Typography variant="caption">Line {lineNum}</Typography> <br />
-      <Typography variant="caption">{text}</Typography>
+      <Typography variant="caption">Line {lineNum}</Typography>
+      <br />
+      <Typography variant="body2">
+        {title}
+      </Typography>
+      {staleLibraryRef ? (
+        <Typography variant="caption" sx={{ display: "block", mt: 0.75, whiteSpace: "pre-wrap" }}>
+          (Click to replace with another comment)
+        </Typography>
+      ) : null}
+      {showDetails && details.trim() ? (
+        <Typography variant="caption" sx={{ display: "block", mt: 0.75, whiteSpace: "pre-wrap" }}>
+          {details}
+        </Typography>
+      ) : null}
     </Alert>
   );
 }
 
-export default function StudentCodeViewer({ code, annotations, commentLibrary }: Props) {
-  const theme = useTheme();
+export default function StudentCodeViewer({
+  code,
+  annotations,
+  commentLibrary,
+  projectId,
+  sourceFilename,
+  workspaceBusy,
+  onAnnotationsChanged,
+}: Props) {
+  const colors = useAppColors();
   const monacoThemeName =
-    theme.palette.mode === "dark" ? "checkmate-code-dark" : "checkmate-code-light";
+    colors.mode === "dark" ? "checkmate-code-dark" : "checkmate-code-light";
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<any>(null);
   const commentsPaneRef = useRef<HTMLDivElement | null>(null);
@@ -104,6 +178,10 @@ export default function StudentCodeViewer({ code, annotations, commentLibrary }:
   const [cardHeightsVersion, setCardHeightsVersion] = useState(0);
   const [commentsListDetached, setCommentsListDetached] = useState(false);
   const commentsListDetachedRef = useRef(false);
+  const [replaceLine, setReplaceLine] = useState<number | null>(null);
+  useEffect(() => {
+    setReplaceLine(null);
+  }, [sourceFilename, projectId]);
   useEffect(() => {
     commentsListDetachedRef.current = commentsListDetached;
   }, [commentsListDetached]);
@@ -143,15 +221,21 @@ export default function StudentCodeViewer({ code, annotations, commentLibrary }:
 
   useEffect(() => {
     const styleId = "checkmate-annotated-line-style";
-    if (document.getElementById(styleId)) return;
-    const el = document.createElement("style");
-    el.id = styleId;
+    let el = document.getElementById(styleId) as HTMLStyleElement | null;
+    if (!el) {
+      el = document.createElement("style");
+      el.id = styleId;
+      document.head.appendChild(el);
+    }
     el.textContent = `
       .monaco-editor .${annotatedLineDecorationClassName} {
-        background: rgba(226, 104, 88, 0.22) !important;
+        background: ${colors.errorContainer} !important;
+        border-radius: 4px;
       }
       .monaco-editor .${annotatedLineDecorationActiveClassName} {
-        background: rgba(226, 104, 88, 0.45) !important;
+        background: ${colors.errorContainer} !important;
+        border-radius: 4px;
+        outline: 2px solid ${colors.error} !important;
       }
       .monaco-editor .${annotatedLineDecorationHitClassName} {
         cursor: pointer !important;
@@ -165,8 +249,7 @@ export default function StudentCodeViewer({ code, annotations, commentLibrary }:
         display: none;
       }
     `;
-    document.head.appendChild(el);
-  }, []);
+  }, [colors.mode]);
 
   const updateAnnotatedLineDecorations = useCallback(() => {
     const ed = editorRef.current;
@@ -233,16 +316,33 @@ export default function StudentCodeViewer({ code, annotations, commentLibrary }:
     const model = ed?.getModel();
     if (!ed || !model) {
       return {
-        items: [] as Array<{ lineNum: number; text: string; top: number }>,
+        items: [] as Array<{
+          lineNum: number;
+          title: string;
+          details: string;
+          showDetails: boolean;
+          isStaleLibraryRef?: boolean;
+          top: number;
+        }>,
         contentHeight: Math.max(editorMetrics.viewportHeight, 0),
       };
     }
     const lineCount = model.getLineCount();
     const positioned = [...lineAnnotationMap.entries()]
-      .filter(([lineNum, text]) => lineNum >= 1 && lineNum <= lineCount && String(text).trim() !== "")
-      .map(([lineNum, text]) => {
+      .filter(
+        ([lineNum, rc]) =>
+          lineNum >= 1 && lineNum <= lineCount && String(rc.title).trim() !== "",
+      )
+      .map(([lineNum, rc]) => {
         const top = ed.getTopForLineNumber(lineNum) - editorMetrics.scrollTop;
-        return { lineNum, text, top };
+        return {
+          lineNum,
+          title: rc.title,
+          details: rc.details,
+          showDetails: rc.showDetails,
+          isStaleLibraryRef: rc.isStaleLibraryRef,
+          top,
+        };
       })
       .sort((a, b) => a.top - b.top);
 
@@ -293,13 +393,13 @@ export default function StudentCodeViewer({ code, annotations, commentLibrary }:
             base: "vs-dark",
             inherit: true,
             rules: [],
-            colors: { "editor.background": colorsDark.surfaceContainerLow },
+            colors: { "editor.background": colors.surfaceContainerLow },
           });
           monaco.editor.defineTheme("checkmate-code-light", {
             base: "vs",
             inherit: true,
             rules: [],
-            colors: { "editor.background": colorsLight.surfaceContainerLow },
+            colors: { "editor.background": colors.surfaceContainerLow },
           });
         }}
         key={monacoThemeName}
@@ -388,7 +488,7 @@ export default function StudentCodeViewer({ code, annotations, commentLibrary }:
               height: `${overlayLayout.contentHeight}px`,
             }}
           >
-            {overlayLayout.items.map(({ lineNum, text, top }) => {
+            {overlayLayout.items.map(({ lineNum, title, details, showDetails, isStaleLibraryRef, top }) => {
               const selected = activeAnnotatedLine === lineNum;
               return (
               <div
@@ -415,8 +515,19 @@ export default function StudentCodeViewer({ code, annotations, commentLibrary }:
               >
                 <InlineAnnotationCard
                   lineNum={lineNum}
-                  text={text}
+                  title={title}
+                  details={details}
+                  showDetails={showDetails}
                   active={activeAnnotatedLine === lineNum}
+                  staleLibraryRef={Boolean(isStaleLibraryRef)}
+                  replaceDisabled={Boolean(workspaceBusy)}
+                  onReplaceRequest={
+                    isStaleLibraryRef
+                      ? () => {
+                          setReplaceLine(lineNum);
+                        }
+                      : undefined
+                  }
                   onSelect={() => {
                     setActiveAnnotatedLine(lineNum);
                     editorRef.current?.revealLineInCenter(lineNum);
@@ -428,6 +539,26 @@ export default function StudentCodeViewer({ code, annotations, commentLibrary }:
           </div>
         </div>
       </div>
+      <ReplaceStaleAnnotationDialog
+        open={replaceLine != null}
+        lineNum={replaceLine ?? 0}
+        comments={commentLibrary}
+        disabled={Boolean(workspaceBusy)}
+        onClose={() => setReplaceLine(null)}
+        onPick={async (commentId) => {
+          if (replaceLine == null) return;
+          const r = await addProjectAnnotation(projectId, {
+            filename: sourceFilename,
+            line: replaceLine,
+            commentId,
+          });
+          if (!r.ok) {
+            throw new Error(r.error || "Could not update annotation.");
+          }
+          setReplaceLine(null);
+          onAnnotationsChanged?.();
+        }}
+      />
     </Paper>
   );
 }

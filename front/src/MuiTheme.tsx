@@ -1,7 +1,8 @@
 import { createTheme, type PaletteMode } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
 import { CheckRounded, CloseRounded, WarningAmberRounded, WarningRounded } from "@mui/icons-material";
 
-export const colorsDark = {
+const colorsDark = {
   primary: "#B8B1FC",
   surfaceTint: "#C5C0FF",
   onPrimary: "#2D2960",
@@ -34,8 +35,8 @@ export const colorsDark = {
   surfaceContainerHighest: "#35343A"
 };
 
-export const colorsLight = {
-  primary: "#5C5891",
+const colorsLight = {
+  primary: "#5c57a1",
   surfaceTint: "#5C5891",
   onPrimary: "#FFFFFF",
   primaryContainer: "#E3DFFF",
@@ -69,6 +70,9 @@ export const colorsLight = {
 
 export type AppColors = typeof colorsLight;
 
+/** Colors from the theme (`useAppColors`) include the active palette mode. */
+export type AppThemeColors = AppColors & { mode: PaletteMode };
+
 export const borderRadius = {
   normal: 24,
   small: 8,
@@ -86,6 +90,7 @@ function buildTheme(mode: PaletteMode, c: AppColors) {
       : "0px 8px 40px rgba(0,0,0,0.12)";
 
   return createTheme({
+    appColors: { ...c, mode },
     palette: {
       mode,
       primary: {
@@ -331,4 +336,18 @@ function buildTheme(mode: PaletteMode, c: AppColors) {
 export function createAppTheme(mode: PaletteMode) {
   const c = mode === "dark" ? colorsDark : colorsLight;
   return buildTheme(mode, c);
+}
+
+/** Semantic app palette for the active light/dark mode (from ThemeProvider). */
+export function useAppColors() {
+  return useTheme().appColors;
+}
+
+declare module "@mui/material/styles" {
+  interface Theme {
+    appColors: AppThemeColors;
+  }
+  interface ThemeOptions {
+    appColors?: AppThemeColors;
+  }
 }

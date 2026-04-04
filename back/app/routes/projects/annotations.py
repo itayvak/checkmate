@@ -9,6 +9,7 @@ from ...db import (
     load_project,
     save_grading_session,
 )
+from .annotation_payload import annotation_dict_for_api
 from . import bp
 
 
@@ -76,10 +77,7 @@ def delete_one_annotation(project_id: str):
     except Exception as e:
         return jsonify({"ok": False, "error": f"Could not save grading session: {e}"}), 500
 
-    out = {
-        "summary": (updated_item or {}).get("summary") or "",
-        "annotations": (updated_item or {}).get("annotations") or [],
-    }
+    out = annotation_dict_for_api(updated_item if isinstance(updated_item, dict) else {})
     return jsonify({"ok": True, "annotation": out})
 
 
@@ -154,9 +152,6 @@ def add_one_annotation(project_id: str):
     except Exception as e:
         return jsonify({"ok": False, "error": f"Could not save grading session: {e}"}), 500
 
-    out = {
-        "summary": (updated_item or {}).get("summary") or "",
-        "annotations": (updated_item or {}).get("annotations") or [],
-    }
+    out = annotation_dict_for_api(updated_item if isinstance(updated_item, dict) else {})
     return jsonify({"ok": True, "annotation": out})
 

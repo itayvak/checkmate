@@ -44,7 +44,7 @@ export default function ProjectSettingsDialog(props: Props) {
           />
           <FileSelectButton
             placeholder="Replace assignment description markdown"
-            accept=".md,.markdown,text/markdown,.txt,text/plain"
+            accept=".md,.txt"
             file={props.assignmentFile}
             onFileChange={props.onAssignmentFileChange}
             fullWidth
@@ -56,7 +56,7 @@ export default function ProjectSettingsDialog(props: Props) {
 
           <FileSelectButton
             placeholder="Replace model solution"
-            accept=".py,text/x-python"
+            accept=".py"
             file={props.modelFile}
             onFileChange={props.onModelFileChange}
             fullWidth

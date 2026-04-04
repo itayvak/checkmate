@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Accordion,
   AccordionDetails,
@@ -16,14 +16,21 @@ import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 import type { ProjectComment, RunCheckerResponse, WorkspaceStudent } from "../api";
 import { font } from "../MuiTheme.tsx";
 import CheckRunResults from "./CheckRunResults";
-import { checkRunPassedTotal, computeAnnotationGrade } from "./checkRunStats";
+import {
+  checkRunPassedTotal,
+  computeAnnotationGrade,
+  getDisplayedStudentSummary,
+} from "./checkRunStats";
 import StudentCodeViewer from "./StudentCodeViewer";
 import { AutoFixHighRounded, TerminalRounded } from "@mui/icons-material";
 
 type Props = {
   student: WorkspaceStudent;
+  projectId: string;
   /** Resolves `comment_id` on line annotations to message text. */
   commentLibrary: ProjectComment[];
+  /** Called after a stale annotation is replaced so workspace data can refresh. */
+  onAnnotationsChanged?: () => void;
   checkerScriptPresent: boolean;
   /** AI settings include an API key — required to run annotation. */
   canAnnotate: boolean;
@@ -87,7 +94,9 @@ function CheckStatusChip({ student }: { student: WorkspaceStudent }) {
 
 export default function SelectedSourceView({
   student,
+  projectId,
   commentLibrary,
+  onAnnotationsChanged,
   checkerScriptPresent,
   canAnnotate,
   workspaceBusy,
@@ -110,6 +119,12 @@ export default function SelectedSourceView({
     student.check?.check_cases && student.check.check_cases.length > 0
       ? `Check run output (${student.check.passed ?? student.check.check_cases.filter((t) => t.passed).length} / ${student.check.total ?? student.check.check_cases.length} passed)`
       : "Check run output";
+
+  const summaryText = useMemo(() => {
+    const ann = student.annotation;
+    if (!ann) return "";
+    return getDisplayedStudentSummary(ann, commentLibrary);
+  }, [student.annotation, commentLibrary]);
 
   return (
     <Paper elevation={4} square sx={{ width: "100%", height: "100%", pb: 0.5, pr: 0.5 }}>
@@ -177,7 +192,7 @@ export default function SelectedSourceView({
             </Button>
           </Stack>
 
-          {student.annotation?.summary ? (
+          {student.annotation && summaryText ? (
             <Accordion
               disableGutters
               expanded={summaryPanelExpanded}
@@ -198,10 +213,11 @@ export default function SelectedSourceView({
                     sx={{
                       whiteSpace: "pre-wrap",
                       wordBreak: "break-word",
+                      lineHeight: 1,
                       textAlign: "start",
                     }}
                   >
-                    {student.annotation.summary}
+                    {summaryText}
                   </Typography>
                 </Box>
               </AccordionDetails>
@@ -212,6 +228,10 @@ export default function SelectedSourceView({
             code={student.code || "No source code available."}
             annotations={student.annotation?.annotations}
             commentLibrary={commentLibrary}
+            projectId={projectId}
+            sourceFilename={student.filename}
+            workspaceBusy={workspaceBusy}
+            onAnnotationsChanged={onAnnotationsChanged}
           />
 
           {student.check ? (

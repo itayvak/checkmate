@@ -1,16 +1,16 @@
 import { Box, Tooltip } from "@mui/material";
-import { alpha, useTheme } from "@mui/material/styles";
 import CheckRounded from "@mui/icons-material/CheckRounded";
 import CloseRounded from "@mui/icons-material/CloseRounded";
 import CircleOutlined from "@mui/icons-material/CircleOutlined";
 import type { WorkspaceStudent } from "../api";
+import { useAppColors } from "../MuiTheme";
 
 type Props = {
   check: WorkspaceStudent["check"];
 };
 
 export default function SourceCheckBadge({ check }: Props) {
-  const theme = useTheme();
+  const colors = useAppColors();
 
   if (check == null) {
     return (
@@ -67,7 +67,7 @@ export default function SourceCheckBadge({ check }: Props) {
                 height: 6,
                 borderRadius: 999,
                 flexShrink: 0,
-                bgcolor: tc.passed ? "success.main" : "error.main",
+                bgcolor: tc.passed ? colors.success : colors.error,
               }}
             />
           ))}
@@ -89,8 +89,8 @@ export default function SourceCheckBadge({ check }: Props) {
             alignItems: "center",
             justifyContent: "center",
             flexShrink: 0,
-            bgcolor: alpha(theme.palette.success.main, 0.22),
-            color: "success.main",
+            bgcolor: colors.successContainer,
+            color: colors.onSuccessContainer,
           }}
         >
           <CheckRounded sx={{ fontSize: 11 }} />
@@ -111,8 +111,8 @@ export default function SourceCheckBadge({ check }: Props) {
           alignItems: "center",
           justifyContent: "center",
           flexShrink: 0,
-          bgcolor: alpha(theme.palette.error.main, 0.22),
-          color: "error.main",
+          bgcolor: colors.errorContainer,
+          color: colors.onErrorContainer,
         }}
       >
         <CloseRounded sx={{ fontSize: 11 }} />

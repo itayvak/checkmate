@@ -11,7 +11,9 @@ param(
   [string] $Branch = "main",
   [switch] $SkipFirewall,
   # Skip winget entirely: download official Python / Node / Git installers (use when VPN breaks winget + msstore).
-  [switch] $DirectOnly
+  [switch] $DirectOnly,
+  # Non-interactive / automated runs: skip desktop shortcut and "start now" prompt.
+  [switch] $NonInteractive
 )
 
 $ErrorActionPreference = "Stop"
@@ -45,6 +47,30 @@ function Test-GitOnPath {
 
 function Test-AllPrerequisitesOnPath {
   return ((Test-PythonOnPath) -and (Test-NpmOnPath) -and (Test-GitOnPath))
+}
+
+function New-CheckmateDesktopShortcut {
+  param(
+    [string] $LauncherPath,
+    [string] $WorkingDirectory
+  )
+  $desktop = [Environment]::GetFolderPath([Environment+SpecialFolder]::Desktop)
+  if (-not $desktop) {
+    Write-Warning "Could not resolve Desktop folder; skipping desktop shortcut."
+    return
+  }
+  $lnk = Join-Path $desktop "Checkmate.lnk"
+  try {
+    $shell = New-Object -ComObject WScript.Shell
+    $sc = $shell.CreateShortcut($lnk)
+    $sc.TargetPath = $LauncherPath
+    $sc.WorkingDirectory = $WorkingDirectory
+    $sc.Description = "Start Checkmate (Flask backend + Vite frontend)"
+    $sc.Save() | Out-Null
+    Write-Host "Desktop shortcut: $lnk"
+  } catch {
+    Write-Warning "Could not create desktop shortcut: $_"
+  }
 }
 
 function Test-Administrator {
@@ -313,6 +339,11 @@ start "Checkmate Frontend" cmd /k "cd /d ""$frontSlash"" && npm run preview -- -
 "@
 Set-Content -Path $launcherPath -Value $cmdContent -Encoding ASCII
 Write-Host "Wrote launcher: $launcherPath"
+if (-not $NonInteractive) {
+  New-CheckmateDesktopShortcut -LauncherPath $launcherPath -WorkingDirectory $resolvedInstall
+} else {
+  Write-Host "NonInteractive: skipping desktop shortcut."
+}
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
   [Security.Principal.WindowsBuiltInRole]::Administrator
 )
@@ -330,6 +361,18 @@ if ($isAdmin -and -not $SkipFirewall) {
   Write-Host "Not running as Administrator: skip firewall rules. Allow TCP 3000 and 5000 inbound manually if needed."
 }
 Write-Host ""
-Write-Host "Done. Double-click RunCheckmate.cmd in:"
+Write-Host "Done. Start Checkmate from the desktop shortcut (Checkmate) or RunCheckmate.cmd in:"
 Write-Host "  $resolvedInstall"
 Write-Host "Then open http://<this-machine-ip>:3000 in a browser."
+
+if (-not $NonInteractive) {
+  Write-Host ""
+  $startNow = Read-Host "Start Checkmate now? [Y/n]"
+  $trim = if ($null -eq $startNow) { "" } else { $startNow.Trim() }
+  if ([string]::IsNullOrWhiteSpace($trim) -or $trim.StartsWith("y", [StringComparison]::OrdinalIgnoreCase)) {
+    Write-Host "Starting RunCheckmate.cmd ..."
+    Start-Process -FilePath $launcherPath -WorkingDirectory $resolvedInstall
+  } else {
+    Write-Host "You can start the app later from the desktop shortcut or RunCheckmate.cmd."
+  }
+}

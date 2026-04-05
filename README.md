@@ -16,6 +16,12 @@ Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/itayvak/checkmate/main
 & "$env:TEMP\checkmate-install.ps1" -RepoUrl 'https://github.com/itayvak/checkmate.git'
 ```
 
+VPN / winget issues: use direct installers only:
+
+```powershell
+& "$env:TEMP\checkmate-install.ps1" -RepoUrl 'https://github.com/itayvak/checkmate.git' -DirectOnly
+```
+
 One line (same thing):
 
 ```powershell
@@ -30,12 +36,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -Uri '
 
 Only run one-liners from sources you trust; confirm the `raw.githubusercontent.com` URL matches your repository.
 
-The script installs dependencies via **winget**, clones the repo (or updates an existing clone), runs `npm ci` and `npm run build` in `front/`, creates a Python venv in `back/` and installs `requirements.txt`, and writes **`RunCheckmate.cmd`** in the install folder (default `%USERPROFILE%\checkmate`).
+The script installs dependencies via **winget** (with automatic **fallback** to direct downloads from python.org, nodejs.org, and git-scm if winget fails), clones the repo (or updates an existing clone), runs `npm ci` and `npm run build` in `front/`, creates a Python venv in `back/` and installs `requirements.txt`, and writes **`RunCheckmate.cmd`** in the install folder (default `%USERPROFILE%\checkmate`). To **skip winget entirely** (recommended on locked-down VPNs), run the script with **`-DirectOnly`**.
 
 Double-click **`RunCheckmate.cmd`** to start the backend and frontend in two windows. Open **`http://<VM_IP>:3000`** in a browser (the UI proxies `/api` to Flask on the same machine). Health check: `http://<VM_IP>:5000/healthz`.
 
 If the installer was not run as Administrator, add inbound firewall rules for TCP 3000 and 5000 manually, or re-run [scripts/windows/install.ps1](scripts/windows/install.ps1) elevated. To skip firewall rules even when elevated: `-SkipFirewall`.
 
-### winget / VPN / certificate errors
+### winget / VPN / certificate errors (`msstore`, `0x8a15005e`)
 
-If `winget` fails with **`Failed when searching source: msstore`** or **`0x8a15005e`** (certificate mismatch), a VPN or corporate proxy is often intercepting HTTPS to the Microsoft Store. The install script uses **`--source winget`** only (community manifest), which usually avoids that. If it still fails, try temporarily disconnecting the VPN, or run `winget source disable msstore` once (then re-run the script), or install Python, Node.js, and Git manually from their official installers and run the script again.
+That usually means TLS to the **Microsoft Store** endpoint failed (VPN, SSL inspection, or certificate pinning). The installer **removes** the `msstore` source (`winget source remove -n msstore`) when possible, uses **`--source winget`** for packages, and can enable **`BypassCertificatePinningForMicrosoftStore`** when run **as Administrator**.
+
+If the error **persists**, use **`-DirectOnly`** so the script never calls `winget` for Python/Node/Git (it downloads the official installers instead). You can also run **`winget source remove -n msstore`** yourself in an elevated PowerShell, then re-run the script.

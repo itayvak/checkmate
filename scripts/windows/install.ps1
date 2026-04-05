@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-  Installs prerequisites (winget), clones the repo, builds the frontend, sets up the Python venv, and writes RunCheckmate.cmd.
+  Installs prerequisites (winget or direct downloads), clones the repo, builds the frontend, sets up the Python venv, and writes RunCheckmate.cmd.
 #>
 [CmdletBinding()]
 param(
@@ -9,40 +9,157 @@ param(
   [string] $RepoUrl,
   [string] $InstallDir = (Join-Path $env:USERPROFILE "checkmate"),
   [string] $Branch = "main",
-  [switch] $SkipFirewall
+  [switch] $SkipFirewall,
+  # Skip winget entirely: download official Python / Node / Git installers (use when VPN breaks winget + msstore).
+  [switch] $DirectOnly
 )
+
 $ErrorActionPreference = "Stop"
+
+# Pinned URLs for -DirectOnly (update occasionally).
+$script:PythonInstallerUrl = "https://www.python.org/ftp/python/3.12.8/python-3.12.8-amd64.exe"
+$script:NodeMsiUrl = "https://nodejs.org/dist/v20.18.1/node-v20.18.1-x64.msi"
+$script:GitInstallerUrl = "https://github.com/git-for-windows/git/releases/download/v2.47.1.windows.1/Git-2.47.1-64-bit.exe"
+
 function Refresh-Path {
   $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" +
     [System.Environment]::GetEnvironmentVariable("Path", "User")
 }
+
 function Test-CommandAvailable {
   param([string] $Name)
   return [bool](Get-Command $Name -ErrorAction SilentlyContinue)
 }
+
+function Test-Administrator {
+  return ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
+    [Security.Principal.WindowsBuiltInRole]::Administrator
+  )
+}
+
+function Disable-WingetMsStoreSource {
+  Write-Host "winget: removing 'msstore' source so WinGet does not contact the Microsoft Store (VPN / cert pinning) ..."
+  # WinGet 1.2+ uses `source remove` (there is no `source disable` on current builds).
+  & winget source remove -n msstore --disable-interactivity 2>$null
+  if ($LASTEXITCODE -ne 0) {
+    Write-Warning "Could not remove msstore source (exit $LASTEXITCODE). Run this script as Administrator, or use -DirectOnly."
+  }
+}
+
+function Enable-WingetStoreCertBypassIfPossible {
+  if (-not (Test-Administrator)) {
+    return
+  }
+  Write-Host "winget: enabling BypassCertificatePinningForMicrosoftStore (helps some SSL inspection / VPN setups) ..."
+  & winget settings --enable BypassCertificatePinningForMicrosoftStore --disable-interactivity 2>$null
+  if ($LASTEXITCODE -ne 0) {
+    Write-Warning "Could not enable certificate-pinning bypass (exit $LASTEXITCODE)."
+  }
+}
+
 function Install-WingetPackage {
   param([string] $Id)
-  Write-Host "winget: installing or upgrading $Id (source: winget only, not Microsoft Store) ..."
-  # --source winget avoids the msstore source, which often fails behind VPN / SSL inspection
-  # with certificate errors (e.g. 0x8a15005e).
-  winget install --id $Id -e --source winget --accept-package-agreements --accept-source-agreements
+  Write-Host "winget: installing or upgrading $Id (source: winget) ..."
+  & winget install --id $Id -e --source winget --accept-package-agreements --accept-source-agreements --disable-interactivity
+  if ($LASTEXITCODE -ne 0) {
+    throw "winget install failed for $Id (exit $LASTEXITCODE)."
+  }
 }
-if (-not (Test-CommandAvailable "winget")) {
-  Write-Error "winget is not available. Install 'App Installer' from the Microsoft Store, then re-run this script."
+
+function Install-Download {
+  param([string] $Uri, [string] $OutFile)
+  Write-Host "Downloading: $Uri -> $OutFile"
+  Invoke-WebRequest -Uri $Uri -OutFile $OutFile -UseBasicParsing
 }
-Install-WingetPackage "Python.Python.3.12"
-Install-WingetPackage "OpenJS.NodeJS.LTS"
-Install-WingetPackage "Git.Git"
-Refresh-Path
+
+function Install-PrerequisitesDirect {
+  Write-Host "Direct install mode: downloading official installers (no winget) ..."
+  $tmp = $env:TEMP
+  $py = Join-Path $tmp "checkmate-python-3.12-amd64.exe"
+  $nodeMsi = Join-Path $tmp "checkmate-node-lts-x64.msi"
+  $git = Join-Path $tmp "checkmate-git-64-bit.exe"
+
+  Install-Download -Uri $script:PythonInstallerUrl -OutFile $py
+  Write-Host "Installing Python (user scope, add to PATH) ..."
+  $pyArgs = @(
+    "/quiet", "InstallAllUsers=0", "PrependPath=1", "Include_pip=1", "Include_launcher=1",
+    "Include_test=0"
+  )
+  Start-Process -FilePath $py -ArgumentList $pyArgs -Wait -NoNewWindow
+
+  Install-Download -Uri $script:NodeMsiUrl -OutFile $nodeMsi
+  Write-Host "Installing Node.js LTS (per-user MSI when possible) ..."
+  & msiexec.exe /i $nodeMsi ALLUSERS=2 MSIINSTALLPERUSER=1 /qn /norestart
+  if ($LASTEXITCODE -ne 0) {
+    throw "msiexec failed for Node (exit $LASTEXITCODE). Try running the script as Administrator."
+  }
+
+  Install-Download -Uri $script:GitInstallerUrl -OutFile $git
+  Write-Host "Installing Git for Windows ..."
+  $gitArgs = @(
+    "/VERYSILENT", "/NORESTART", "/NOCANCEL", "/SP-", "/CLOSEAPPLICATIONS", "/RESTARTAPPLICATIONS",
+    "/COMPONENTS=icons,ext\reg\shellhere,assoc,assoc_sh"
+  )
+  Start-Process -FilePath $git -ArgumentList $gitArgs -Wait -NoNewWindow
+}
+
+function Install-Prerequisites {
+  if ($DirectOnly) {
+    Install-PrerequisitesDirect
+    Refresh-Path
+    return
+  }
+
+  if (-not (Test-CommandAvailable "winget")) {
+    Write-Error "winget is not available. Install 'App Installer', or re-run with -DirectOnly."
+  }
+
+  if (-not (Test-Administrator)) {
+    Write-Host "Note: Removing the winget 'msstore' source usually requires Administrator. On VPN, if winget fails with msstore/certificate errors, stop and re-run with -DirectOnly."
+  }
+
+  Disable-WingetMsStoreSource
+  Enable-WingetStoreCertBypassIfPossible
+
+  $wingetFailed = $false
+  try {
+    Install-WingetPackage "Python.Python.3.12"
+    Install-WingetPackage "OpenJS.NodeJS.LTS"
+    Install-WingetPackage "Git.Git"
+  } catch {
+    Write-Warning $_.Exception.Message
+    $wingetFailed = $true
+  }
+
+  Refresh-Path
+
+  if (-not $wingetFailed) {
+    if ((Test-CommandAvailable "git") -and (Test-CommandAvailable "python") -and (Test-CommandAvailable "npm")) {
+      return
+    }
+    Write-Warning "winget reported success but git/python/npm not on PATH; trying direct installers ..."
+    $wingetFailed = $true
+  }
+
+  if ($wingetFailed) {
+    Write-Host "Falling back to direct downloads (-DirectOnly style) ..."
+    Install-PrerequisitesDirect
+    Refresh-Path
+  }
+}
+
+Install-Prerequisites
+
 if (-not (Test-CommandAvailable "git")) {
-  Write-Error "git was not found on PATH after install. Open a new PowerShell window and run this script again, or add Git to PATH."
+  Write-Error "git was not found on PATH after install. Open a new PowerShell window and re-run this script."
 }
 if (-not (Test-CommandAvailable "python")) {
-  Write-Error "python was not found on PATH after install. Open a new PowerShell window and run this script again."
+  Write-Error "python was not found on PATH after install. Open a new PowerShell window and re-run this script."
 }
 if (-not (Test-CommandAvailable "npm")) {
   Write-Error "npm was not found on PATH after install. Open a new PowerShell window and run this script again."
 }
+
 $resolvedInstall = [System.IO.Path]::GetFullPath($InstallDir)
 if (Test-Path $resolvedInstall) {
   $gitDir = Join-Path $resolvedInstall ".git"

@@ -3,12 +3,10 @@ import react from "@vitejs/plugin-react";
 
 // https://vite.dev/config/
 const apiProxy = {
-  // React fetches Flask APIs under `/api/*`.
-  // Example: `/api/projects` -> Flask `/projects`.
+  // Flask blueprints use `url_prefix="/api"`; forward `/api/*` unchanged to port 5000.
   "/api": {
     target: "http://localhost:5000",
     changeOrigin: true,
-    rewrite: (path: string) => path.replace(/^\/api/, ""),
   },
 };
 

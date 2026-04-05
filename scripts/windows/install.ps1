@@ -16,9 +16,9 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-# Pinned URLs for -DirectOnly (update occasionally).
+# Pinned versions / URLs for -DirectOnly (update occasionally).
 $script:PythonInstallerUrl = "https://www.python.org/ftp/python/3.12.8/python-3.12.8-amd64.exe"
-$script:NodeMsiUrl = "https://nodejs.org/dist/v20.18.1/node-v20.18.1-x64.msi"
+$script:NodeVersion = "20.18.1"
 $script:GitInstallerUrl = "https://github.com/git-for-windows/git/releases/download/v2.47.1.windows.1/Git-2.47.1-64-bit.exe"
 
 function Refresh-Path {
@@ -72,11 +72,57 @@ function Install-Download {
   Invoke-WebRequest -Uri $Uri -OutFile $OutFile -UseBasicParsing
 }
 
+function Add-UserPathFirst {
+  param([string] $Dir)
+  if (-not (Test-Path $Dir)) {
+    throw "Path does not exist: $Dir"
+  }
+  $Dir = (Resolve-Path $Dir).Path
+  $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+  $parts = @()
+  if ($userPath) {
+    $parts = $userPath -split ";" | Where-Object { $_ -and ($_ -ne $Dir) }
+  }
+  $newUserPath = ($Dir + ";" + ($parts -join ";")).TrimEnd(";")
+  [Environment]::SetEnvironmentVariable("Path", $newUserPath, "User")
+  $onSessionPath = $false
+  foreach ($p in ($env:Path -split ";")) {
+    if ($p -and ($p -ieq $Dir)) {
+      $onSessionPath = $true
+      break
+    }
+  }
+  if (-not $onSessionPath) {
+    $env:Path = "$Dir;$env:Path"
+  }
+}
+
+function Install-NodeFromZip {
+  $ver = $script:NodeVersion
+  $zipUrl = "https://nodejs.org/dist/v$ver/node-v$ver-win-x64.zip"
+  $tmp = $env:TEMP
+  $zipPath = Join-Path $tmp "checkmate-node-v$ver-win-x64.zip"
+  $destBase = Join-Path $env:LOCALAPPDATA "checkmate-node"
+  $extractInto = Join-Path $destBase "v$ver"
+
+  Install-Download -Uri $zipUrl -OutFile $zipPath
+  Write-Host "Installing Node.js v$ver (official zip under LocalAppData, no MSI) ..."
+  if (Test-Path $extractInto) {
+    Remove-Item $extractInto -Recurse -Force -ErrorAction Stop
+  }
+  New-Item -ItemType Directory -Path $destBase -Force | Out-Null
+  Expand-Archive -Path $zipPath -DestinationPath $extractInto -Force
+  $nodeBin = Join-Path $extractInto "node-v$ver-win-x64"
+  if (-not (Test-Path (Join-Path $nodeBin "node.exe"))) {
+    throw "Node zip layout unexpected: missing node.exe under $nodeBin"
+  }
+  Add-UserPathFirst -Dir $nodeBin
+}
+
 function Install-PrerequisitesDirect {
   Write-Host "Direct install mode: downloading official installers (no winget) ..."
   $tmp = $env:TEMP
   $py = Join-Path $tmp "checkmate-python-3.12-amd64.exe"
-  $nodeMsi = Join-Path $tmp "checkmate-node-lts-x64.msi"
   $git = Join-Path $tmp "checkmate-git-64-bit.exe"
 
   Install-Download -Uri $script:PythonInstallerUrl -OutFile $py
@@ -87,12 +133,8 @@ function Install-PrerequisitesDirect {
   )
   Start-Process -FilePath $py -ArgumentList $pyArgs -Wait -NoNewWindow
 
-  Install-Download -Uri $script:NodeMsiUrl -OutFile $nodeMsi
-  Write-Host "Installing Node.js LTS (per-user MSI when possible) ..."
-  & msiexec.exe /i $nodeMsi ALLUSERS=2 MSIINSTALLPERUSER=1 /qn /norestart
-  if ($LASTEXITCODE -ne 0) {
-    throw "msiexec failed for Node (exit $LASTEXITCODE). Try running the script as Administrator."
-  }
+  Install-NodeFromZip
+  Refresh-Path
 
   Install-Download -Uri $script:GitInstallerUrl -OutFile $git
   Write-Host "Installing Git for Windows ..."

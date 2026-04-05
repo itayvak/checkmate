@@ -36,7 +36,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -Uri '
 
 Only run one-liners from sources you trust; confirm the `raw.githubusercontent.com` URL matches your repository.
 
-The script installs dependencies via **winget** (with automatic **fallback** to direct downloads from python.org, nodejs.org, and git-scm if winget fails), clones the repo (or updates an existing clone), runs `npm ci` and `npm run build` in `front/`, creates a Python venv in `back/` and installs `requirements.txt`, and writes **`RunCheckmate.cmd`** in the install folder (default `%USERPROFILE%\checkmate`). To **skip winget entirely** (recommended on locked-down VPNs), run the script with **`-DirectOnly`**.
+The script installs dependencies via **winget** (with automatic **fallback** to direct downloads from python.org, nodejs.org, and git-scm if winget fails). The direct Node.js step uses the official **Windows x64 zip** unpacked under `%LOCALAPPDATA%\checkmate-node` (not an MSI), so it does not rely on `msiexec`. It then clones the repo (or updates an existing clone), runs `npm ci` and `npm run build` in `front/`, creates a Python venv in `back/` and installs `requirements.txt`, and writes **`RunCheckmate.cmd`** in the install folder (default `%USERPROFILE%\checkmate`). To **skip winget entirely** (recommended on locked-down VPNs), run the script with **`-DirectOnly`**.
 
 Double-click **`RunCheckmate.cmd`** to start the backend and frontend in two windows. Open **`http://<VM_IP>:3000`** in a browser (the UI proxies `/api` to Flask on the same machine). Health check: `http://<VM_IP>:5000/healthz`.
 

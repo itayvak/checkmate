@@ -22,8 +22,10 @@ function Test-CommandAvailable {
 }
 function Install-WingetPackage {
   param([string] $Id)
-  Write-Host "winget: installing or upgrading $Id ..."
-  winget install --id $Id -e --accept-package-agreements --accept-source-agreements
+  Write-Host "winget: installing or upgrading $Id (source: winget only, not Microsoft Store) ..."
+  # --source winget avoids the msstore source, which often fails behind VPN / SSL inspection
+  # with certificate errors (e.g. 0x8a15005e).
+  winget install --id $Id -e --source winget --accept-package-agreements --accept-source-agreements
 }
 if (-not (Test-CommandAvailable "winget")) {
   Write-Error "winget is not available. Install 'App Installer' from the Microsoft Store, then re-run this script."

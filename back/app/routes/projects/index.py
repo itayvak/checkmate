@@ -2,7 +2,7 @@ import os
 import uuid
 from typing import Any, Optional
 
-from flask import jsonify, request, url_for
+from flask import jsonify, request
 
 from ...db import (
     list_projects,
@@ -74,7 +74,8 @@ def create_project():
         {
             "ok": True,
             "project_id": project_id,
-            "redirect_url": url_for("projects.project_workspace", project_id=project_id),
+            # SPA route (see front/src/App.tsx), not an API path under /api.
+            "redirect_url": f"/projects/{project_id}",
         }
     )
 

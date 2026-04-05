@@ -13,7 +13,6 @@ import {
   ListItemIcon,
   ListItemText,
   TextField,
-  Typography,
 } from "@mui/material";
 
 export type BulkSelectionMode = "check" | "annotate";

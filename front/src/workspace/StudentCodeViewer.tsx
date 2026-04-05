@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Button, Paper, Typography } from "@mui/material";
+import { Alert, Paper, Typography } from "@mui/material";
 import Editor from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
 import { addProjectAnnotation, type LineAnnotation, type ProjectComment } from "../api";
 import { useAppColors } from "../MuiTheme";
 import ReplaceStaleAnnotationDialog from "./ReplaceStaleAnnotationDialog";
-import { CommentRounded } from "@mui/icons-material";
 
 /** Inset cards from rail edges + small horizontal nudge so selection stays inside the scrollport. */
 const ANNOTATION_RAIL_CARD_INSET = { left: 16, right: 16 } as const;
@@ -106,17 +105,22 @@ function InlineAnnotationCard({
   onReplaceRequest?: () => void;
 }) {
   const colors = useAppColors();
+  const replaceBlocked = Boolean(staleLibraryRef && replaceDisabled);
   return (
     <Alert
       onClick={(e) => {
         e.stopPropagation();
+        if (replaceBlocked) {
+          onSelect();
+          return;
+        }
         staleLibraryRef ? onReplaceRequest?.() : onSelect();
       }}
       severity="error"
       icon={false}
       sx={{
         maxWidth: "450px",
-        cursor: "pointer",
+        cursor: replaceBlocked ? "not-allowed" : "pointer",
         borderStyle: "solid",
         borderWidth: "2px",
         borderColor: active

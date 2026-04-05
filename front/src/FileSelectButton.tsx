@@ -4,7 +4,7 @@ import {
   FileUploadOutlined,
   InsertDriveFileRounded,
 } from "@mui/icons-material";
-import { Box, IconButton, Stack, useTheme } from "@mui/material";
+import { Box, IconButton, Stack } from "@mui/material";
 import Button, { type ButtonProps } from "@mui/material/Button";
 import Typography from "@mui/material/Typography";
 import { borderRadius, font, useAppColors } from "./MuiTheme";
@@ -164,7 +164,7 @@ export default function FileSelectButton(props: FileSelectButtonProps) {
             textAlign: "left",
             borderRadius: `${borderRadius.small}px`,
             ...(!hasSelection && {
-              borderColor: colors.divider,
+              borderColor: colors.outlineVariant,
               color: colors.onSurfaceVariant,
             }),
             ...sx,

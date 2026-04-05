@@ -1,6 +1,6 @@
 import { createTheme, type PaletteMode } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
-import { CheckRounded, CloseRounded, WarningAmberRounded, WarningRounded } from "@mui/icons-material";
+import { CheckRounded, CloseRounded, WarningAmberRounded } from "@mui/icons-material";
 
 const colorsDark = {
   primary: "#B8B1FC",

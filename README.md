@@ -5,45 +5,55 @@
 
 יצירת סקריפט בדיקה אוטומטית וג'ינרוט הערות נעשה בעזרת AI.
 
-## Windows deployment (fresh VM)
-
-Prerequisites: PowerShell and network access. **Run PowerShell as Administrator** so `winget` can install Python, Node.js, and Git reliably, and so the installer can open Windows Firewall for TCP **3000** (Vite preview) and **5000** (Flask).
-
-**Bootstrap (paste into PowerShell).** Do not nest another `powershell -Command` unless the **whole** download + run sequence stays inside **one** pair of quotes—otherwise `-OutFile` is not part of `Invoke-WebRequest` and you get errors like `Cannot find drive. A drive with the name '\C' does not exist`.
-
-```powershell
-Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/itayvak/checkmate/main/scripts/windows/install.ps1' -OutFile "$env:TEMP\checkmate-install.ps1" -UseBasicParsing
-& "$env:TEMP\checkmate-install.ps1" -RepoUrl 'https://github.com/itayvak/checkmate.git'
-```
-
-VPN / winget issues: use direct installers only:
-
-```powershell
-& "$env:TEMP\checkmate-install.ps1" -RepoUrl 'https://github.com/itayvak/checkmate.git' -DirectOnly
-```
-
-One line (same thing):
-
+## פריסה
+על מנת לפרוס את האפליקציה על מכונה וירטואלית, תעשו:
+1. לפתוח מכונת Windows חדשה
+2. להתחבר למכונה עם mstsc
+3. לפתוח Powershell על המכונה במצב Administrator
+4. להריץ את הפקודה הבאה:
 ```powershell
 Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/itayvak/checkmate/main/scripts/windows/install.ps1' -OutFile "$env:TEMP\checkmate-install.ps1" -UseBasicParsing; & "$env:TEMP\checkmate-install.ps1" -RepoUrl 'https://github.com/itayvak/checkmate.git'
 ```
 
-If you must invoke from **cmd.exe** (single nested `powershell` call), keep download and execute inside one `-Command "..."` string, for example:
+### למה אי אפשר בלינוקס??
+חובה להריץ את האפליקציה הזאת על ווינדוס בשל העובדה שכל הסורסים שהחניכים כותבים נכתבים על ווינדוס בעצמם.
 
-```bat
-powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/itayvak/checkmate/main/scripts/windows/install.ps1' -OutFile \"$env:TEMP\checkmate-install.ps1\" -UseBasicParsing; & \"$env:TEMP\checkmate-install.ps1\" -RepoUrl 'https://github.com/itayvak/checkmate.git'"
+כחלק מהפעולות של האפליקציה, היא מריצה סורסים של חניכים וככה בודקת בצורה אוטומטית שהם מימשו את הדרישות. בגלל שהחניכים כותבים את
+הסקריפטים שלהם בהנחה שהוא רץ על עמדת ווינדוס, הסקריפט לא יכול לרוץ על מערכת הפעלה אחרת.
+
+לדוגמא, כל הנתיבים בסקריפטים יהיו בפורמט של ווינדוס. עוד דוגמא, במדרגה 1 של IT ממש צריך לכתוב סקריפט שעורך ערכים בRegistry של ווינדוס.
+
+לכן, בשביל שהפיצר של הבדיקה אוטומטית יעבוד חייב להריץ את זה על ווינדוס.
+
+בשביל זה יש סקריפט הרצה מאוד נוח ופשוט :)
+
+## פיתוח מקומי
+
+בשביל להריץ את האפליקציה על המחשב שלך, קודם כל צריך לדאוג שמותקן על המחשב:
+- python
+- git
+- nodeJS
+
+לאחר מכן, בשביל להריץ את האפליקציה:
+1. לעשות Clone למחשב שלכם
+2. להתקין את הספריות Python הדרושות:
+```bash
+cd back
+pip install -r requirements.txt
 ```
-
-Only run one-liners from sources you trust; confirm the `raw.githubusercontent.com` URL matches your repository.
-
-The script installs dependencies via **winget** (with automatic **fallback** to direct downloads from python.org, nodejs.org, and git-scm if winget fails). The direct Node.js step uses the official **Windows x64 zip** unpacked under `%LOCALAPPDATA%\checkmate-node` (not an MSI), so it does not rely on `msiexec`. It then clones the repo (or updates an existing clone), runs `npm ci` and `npm run build` in `front/`, creates a Python venv in `back/` and installs `requirements.txt`, and writes **`RunCheckmate.cmd`** in the install folder (default `%USERPROFILE%\checkmate`). To **skip winget entirely** (recommended on locked-down VPNs), run the script with **`-DirectOnly`**.
-
-Double-click **`RunCheckmate.cmd`** to start the backend and frontend in two windows. Open **`http://<VM_IP>:3000`** in a browser (the UI proxies `/api` to Flask on the same machine). Health check: `http://<VM_IP>:5000/healthz`.
-
-If the installer was not run as Administrator, add inbound firewall rules for TCP 3000 and 5000 manually, or re-run [scripts/windows/install.ps1](scripts/windows/install.ps1) elevated. To skip firewall rules even when elevated: `-SkipFirewall`.
-
-### winget / VPN / certificate errors (`msstore`, `0x8a15005e`)
-
-That usually means TLS to the **Microsoft Store** endpoint failed (VPN, SSL inspection, or certificate pinning). The installer **removes** the `msstore` source (`winget source remove -n msstore`) when possible, uses **`--source winget`** for packages, and can enable **`BypassCertificatePinningForMicrosoftStore`** when run **as Administrator**.
-
-If the error **persists**, use **`-DirectOnly`** so the script never calls `winget` for Python/Node/Git (it downloads the official installers instead). You can also run **`winget source remove -n msstore`** yourself in an elevated PowerShell, then re-run the script.
+3. להתקין את הספריות NPM הדרושות:
+```bash
+cd front
+npm install
+```
+4. עכשיו ניתן להריץ את שתי חלקי האפליקציה. נתחיל בלהריץ את הbackend:
+```bash
+cd back
+python main.py
+```
+5. נפתח Terminal חדש ובו נריץ את הfrontend:
+```bash
+cd front
+npm run dev
+```
+וזהו! ניתן לגשת לאפליקציה בlocalhost:3000.

@@ -31,6 +31,22 @@ function Test-CommandAvailable {
   return [bool](Get-Command $Name -ErrorAction SilentlyContinue)
 }
 
+function Test-PythonOnPath {
+  return (Test-CommandAvailable "python")
+}
+
+function Test-NpmOnPath {
+  return (Test-CommandAvailable "npm")
+}
+
+function Test-GitOnPath {
+  return (Test-CommandAvailable "git")
+}
+
+function Test-AllPrerequisitesOnPath {
+  return ((Test-PythonOnPath) -and (Test-NpmOnPath) -and (Test-GitOnPath))
+}
+
 function Test-Administrator {
   return ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
     [Security.Principal.WindowsBuiltInRole]::Administrator
@@ -106,7 +122,7 @@ function Install-NodeFromZip {
   $extractInto = Join-Path $destBase "v$ver"
 
   Install-Download -Uri $zipUrl -OutFile $zipPath
-  Write-Host "Installing Node.js v$ver (official zip under LocalAppData, no MSI) ..."
+  Write-Host "Installing Node.js v$ver (official zip under LocalAppData) ..."
   if (Test-Path $extractInto) {
     Remove-Item $extractInto -Recurse -Force -ErrorAction Stop
   }
@@ -120,54 +136,95 @@ function Install-NodeFromZip {
 }
 
 function Install-PrerequisitesDirect {
-  Write-Host "Direct install mode: downloading official installers (no winget) ..."
-  $tmp = $env:TEMP
-  $py = Join-Path $tmp "checkmate-python-3.12-amd64.exe"
-  $git = Join-Path $tmp "checkmate-git-64-bit.exe"
-
-  Install-Download -Uri $script:PythonInstallerUrl -OutFile $py
-  Write-Host "Installing Python (user scope, add to PATH) ..."
-  $pyArgs = @(
-    "/quiet", "InstallAllUsers=0", "PrependPath=1", "Include_pip=1", "Include_launcher=1",
-    "Include_test=0"
+  param(
+    [string] $Reason = "direct mode"
   )
-  Start-Process -FilePath $py -ArgumentList $pyArgs -Wait -NoNewWindow
-
-  Install-NodeFromZip
+  Write-Host "Prerequisite install ($Reason): only missing tools will be downloaded ..."
   Refresh-Path
+  $tmp = $env:TEMP
 
-  Install-Download -Uri $script:GitInstallerUrl -OutFile $git
-  Write-Host "Installing Git for Windows ..."
-  $gitArgs = @(
-    "/VERYSILENT", "/NORESTART", "/NOCANCEL", "/SP-", "/CLOSEAPPLICATIONS", "/RESTARTAPPLICATIONS",
-    "/COMPONENTS=icons,ext\reg\shellhere,assoc,assoc_sh"
-  )
-  Start-Process -FilePath $git -ArgumentList $gitArgs -Wait -NoNewWindow
+  if (-not (Test-PythonOnPath)) {
+    $py = Join-Path $tmp "checkmate-python-3.12-amd64.exe"
+    Install-Download -Uri $script:PythonInstallerUrl -OutFile $py
+    Write-Host "Installing Python (user scope, add to PATH) ..."
+    $pyArgs = @(
+      "/quiet", "InstallAllUsers=0", "PrependPath=1", "Include_pip=1", "Include_launcher=1",
+      "Include_test=0"
+    )
+    Start-Process -FilePath $py -ArgumentList $pyArgs -Wait -NoNewWindow
+    Refresh-Path
+  } else {
+    Write-Host 'Python already on PATH ("python"); skipping Python installer.'
+  }
+
+  if (-not (Test-NpmOnPath)) {
+    Install-NodeFromZip
+    Refresh-Path
+  } else {
+    Write-Host "npm already on PATH; skipping Node.js zip install."
+  }
+
+  if (-not (Test-GitOnPath)) {
+    $git = Join-Path $tmp "checkmate-git-64-bit.exe"
+    Install-Download -Uri $script:GitInstallerUrl -OutFile $git
+    Write-Host "Installing Git for Windows ..."
+    $gitArgs = @(
+      "/VERYSILENT", "/NORESTART", "/NOCANCEL", "/SP-", "/CLOSEAPPLICATIONS", "/RESTARTAPPLICATIONS",
+      "/COMPONENTS=icons,ext\reg\shellhere,assoc,assoc_sh"
+    )
+    Start-Process -FilePath $git -ArgumentList $gitArgs -Wait -NoNewWindow
+    Refresh-Path
+  } else {
+    Write-Host "Git already on PATH; skipping Git installer."
+  }
 }
 
 function Install-Prerequisites {
+  Refresh-Path
+
   if ($DirectOnly) {
-    Install-PrerequisitesDirect
+    Install-PrerequisitesDirect -Reason "-DirectOnly"
     Refresh-Path
     return
   }
 
+  if (Test-AllPrerequisitesOnPath) {
+    Write-Host "Python, npm, and git are already on PATH; skipping prerequisite installs."
+    return
+  }
+
   if (-not (Test-CommandAvailable "winget")) {
-    Write-Error "winget is not available. Install 'App Installer', or re-run with -DirectOnly."
+    Write-Error "winget is not available. Install 'App Installer', install Python/Node/Git manually, or re-run with -DirectOnly."
   }
 
   if (-not (Test-Administrator)) {
     Write-Host "Note: Removing the winget 'msstore' source usually requires Administrator. On VPN, if winget fails with msstore/certificate errors, stop and re-run with -DirectOnly."
   }
 
+  $needPython = -not (Test-PythonOnPath)
+  $needNpm = -not (Test-NpmOnPath)
+  $needGit = -not (Test-GitOnPath)
+
   Disable-WingetMsStoreSource
   Enable-WingetStoreCertBypassIfPossible
 
   $wingetFailed = $false
   try {
-    Install-WingetPackage "Python.Python.3.12"
-    Install-WingetPackage "OpenJS.NodeJS.LTS"
-    Install-WingetPackage "Git.Git"
+    if ($needPython) {
+      Install-WingetPackage "Python.Python.3.12"
+    } else {
+      Write-Host "Python already on PATH; skipping winget Python.Python.3.12."
+    }
+    if ($needNpm) {
+      Install-WingetPackage "OpenJS.NodeJS.LTS"
+    } else {
+      Write-Host "npm already on PATH; skipping winget OpenJS.NodeJS.LTS."
+    }
+    if ($needGit) {
+      Install-WingetPackage "Git.Git"
+    } else {
+      Write-Host "Git already on PATH; skipping winget Git.Git."
+    }
   } catch {
     Write-Warning $_.Exception.Message
     $wingetFailed = $true
@@ -176,16 +233,15 @@ function Install-Prerequisites {
   Refresh-Path
 
   if (-not $wingetFailed) {
-    if ((Test-CommandAvailable "git") -and (Test-CommandAvailable "python") -and (Test-CommandAvailable "npm")) {
+    if (Test-AllPrerequisitesOnPath) {
       return
     }
-    Write-Warning "winget reported success but git/python/npm not on PATH; trying direct installers ..."
+    Write-Warning "winget finished but git/python/npm not all on PATH; trying direct installers for whatever is still missing ..."
     $wingetFailed = $true
   }
 
   if ($wingetFailed) {
-    Write-Host "Falling back to direct downloads (-DirectOnly style) ..."
-    Install-PrerequisitesDirect
+    Install-PrerequisitesDirect -Reason "winget fallback"
     Refresh-Path
   }
 }

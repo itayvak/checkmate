@@ -33,7 +33,7 @@ export default function CheckRunAllDialog({ open, progress, onCancel }: Props) {
       fullWidth
       maxWidth="sm"
     >
-      <DialogTitle>Check run all</DialogTitle>
+      <DialogTitle>Check run</DialogTitle>
       <DialogContent>
         {progress ? (
           <Stack spacing={1}>

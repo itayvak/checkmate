@@ -27,8 +27,9 @@ import CheckerScriptDialog from "./workspace/CheckerScriptDialog";
 import CheckRunAllDialog, { type CheckRunAllProgress } from "./workspace/CheckRunAllDialog";
 import DeleteSourceConfirmDialog from "./workspace/DeleteSourceConfirmDialog";
 import CommentLibraryDialog from "./workspace/CommentLibraryDialog";
-import AnnotateOptionsDialog, { type AnnotateScope } from "./workspace/AnnotateOptionsDialog";
+import AnnotateOptionsDialog from "./workspace/AnnotateOptionsDialog";
 import AnnotateAllDialog from "./workspace/AnnotateAllDialog";
+import BulkSourceSelectionDialog from "./workspace/BulkSourceSelectionDialog";
 import CheckRunMatrixDialog from "./workspace/CheckRunMatrixDialog";
 import GradesSummaryDialog from "./workspace/GradesSummaryDialog";
 import { sortSourcesByFilename } from "./workspace/sortSources";
@@ -86,7 +87,7 @@ export default function ProjectWorkspacePage({ projectId }: Props) {
   const checkRunAllCancelRequestedRef = useRef(false);
   const annotateAllCancelRequestedRef = useRef(false);
   const [annotateOptionsOpen, setAnnotateOptionsOpen] = useState(false);
-  const [annotateOptionsScope, setAnnotateOptionsScope] = useState<AnnotateScope>("all");
+  const [bulkSelectionMode, setBulkSelectionMode] = useState<null | "check" | "annotate">(null);
   const [annotateAllPending, setAnnotateAllPending] = useState(false);
   const [annotateAllProgress, setAnnotateAllProgress] = useState<CheckRunAllProgress | null>(null);
   const [annotateOnePending, setAnnotateOnePending] = useState(false);
@@ -398,9 +399,10 @@ export default function ProjectWorkspacePage({ projectId }: Props) {
     Boolean(deleteConfirmFilename) ||
     annotateAllPending ||
     annotateOnePending ||
-    annotateOptionsOpen;
+    annotateOptionsOpen ||
+    bulkSelectionMode !== null;
 
-  const runCheckAll = async () => {
+  const beginCheckRunAll = () => {
     const script = checkerScript.trim();
     if (!script) {
       showToast('No checker script. Open "Checker script" in Settings to add one.', "error");
@@ -417,12 +419,49 @@ export default function ProjectWorkspacePage({ projectId }: Props) {
       deleteConfirmFilename ||
       annotateAllPending ||
       annotateOnePending ||
+      annotateOptionsOpen ||
+      bulkSelectionMode !== null
+    ) {
+      return;
+    }
+    setBulkSelectionMode("check");
+  };
+
+  const handleBulkSelectionConfirm = (selectedFilenames: string[], extraInstructions: string) => {
+    const mode = bulkSelectionMode;
+    setBulkSelectionMode(null);
+    if (selectedFilenames.length === 0) {
+      showToast("Select at least one source.", "error");
+      return;
+    }
+    if (mode === "check") void runCheckAllOnSelected(selectedFilenames);
+    else if (mode === "annotate") void runAnnotateAll(extraInstructions, selectedFilenames);
+  };
+
+  const runCheckAllOnSelected = async (filenames: string[]) => {
+    const script = checkerScript.trim();
+    if (!script) {
+      showToast('No checker script. Open "Checker script" in Settings to add one.', "error");
+      return;
+    }
+    if (
+      checkRunAllPending ||
+      checkThisSourcePending ||
+      deleteSourcePending ||
+      deleteConfirmFilename ||
+      annotateAllPending ||
+      annotateOnePending ||
       annotateOptionsOpen
     ) {
       return;
     }
 
-    const queue = studentsSorted.slice();
+    const selectedSet = new Set(filenames);
+    const queue = studentsSorted.filter((s) => selectedSet.has(s.filename));
+    if (queue.length === 0) {
+      showToast("No matching sources.", "error");
+      return;
+    }
     const total = queue.length;
     let errors = 0;
     checkRunAllCancelRequestedRef.current = false;
@@ -475,12 +514,12 @@ export default function ProjectWorkspacePage({ projectId }: Props) {
       }
 
       if (checkRunAllCancelRequestedRef.current) {
-        showToast(`Check run all cancelled (${completed} of ${total} sources completed).`);
+        showToast(`Check run cancelled (${completed} of ${total} sources completed).`);
       } else {
         showToast(
           errors
-            ? `Check run all done — ${errors} error(s).`
-            : `Check run all complete (${total} sources).`,
+            ? `Check run done — ${errors} error(s).`
+            : `Check run complete (${total} sources).`,
           errors ? "error" : "success",
         );
       }
@@ -514,12 +553,12 @@ export default function ProjectWorkspacePage({ projectId }: Props) {
       deleteConfirmFilename ||
       annotateAllPending ||
       annotateOnePending ||
-      annotateOptionsOpen
+      annotateOptionsOpen ||
+      bulkSelectionMode !== null
     ) {
       return;
     }
-    setAnnotateOptionsScope("all");
-    setAnnotateOptionsOpen(true);
+    setBulkSelectionMode("annotate");
   };
 
   const beginAnnotateThisSource = () => {
@@ -535,16 +574,21 @@ export default function ProjectWorkspacePage({ projectId }: Props) {
       deleteConfirmFilename ||
       annotateAllPending ||
       annotateOnePending ||
-      annotateOptionsOpen
+      annotateOptionsOpen ||
+      bulkSelectionMode !== null
     ) {
       return;
     }
-    setAnnotateOptionsScope("one");
     setAnnotateOptionsOpen(true);
   };
 
-  const runAnnotateAll = async (extraInstructions: string) => {
-    const queue = studentsSorted.slice();
+  const runAnnotateAll = async (extraInstructions: string, filenames: string[]) => {
+    const selectedSet = new Set(filenames);
+    const queue = studentsSorted.filter((s) => selectedSet.has(s.filename));
+    if (queue.length === 0) {
+      showToast("No matching sources.", "error");
+      return;
+    }
     const total = queue.length;
     let errors = 0;
     annotateAllCancelRequestedRef.current = false;
@@ -601,12 +645,12 @@ export default function ProjectWorkspacePage({ projectId }: Props) {
       }
 
       if (annotateAllCancelRequestedRef.current) {
-        showToast(`Annotate all cancelled (${completed} of ${total} sources completed).`);
+        showToast(`Annotate cancelled (${completed} of ${total} sources completed).`);
       } else {
         showToast(
           errors
-            ? `Annotate all done — ${errors} error(s).`
-            : `Annotate all complete (${total} sources).`,
+            ? `Annotate done — ${errors} error(s).`
+            : `Annotate complete (${total} sources).`,
           errors ? "error" : "success",
         );
       }
@@ -649,9 +693,7 @@ export default function ProjectWorkspacePage({ projectId }: Props) {
 
   const handleAnnotateOptionsStart = (extraInstructions: string) => {
     setAnnotateOptionsOpen(false);
-    const scope = annotateOptionsScope;
-    if (scope === "all") void runAnnotateAll(extraInstructions);
-    else void runAnnotateOne(extraInstructions);
+    void runAnnotateOne(extraInstructions);
   };
 
   const runCheckThisSource = async () => {
@@ -663,7 +705,8 @@ export default function ProjectWorkspacePage({ projectId }: Props) {
       deleteConfirmFilename ||
       annotateAllPending ||
       annotateOnePending ||
-      annotateOptionsOpen
+      annotateOptionsOpen ||
+      bulkSelectionMode !== null
     ) {
       return;
     }
@@ -703,7 +746,8 @@ export default function ProjectWorkspacePage({ projectId }: Props) {
       checkThisSourcePending ||
       annotateAllPending ||
       annotateOnePending ||
-      annotateOptionsOpen
+      annotateOptionsOpen ||
+      bulkSelectionMode !== null
     ) {
       return;
     }
@@ -766,7 +810,7 @@ export default function ProjectWorkspacePage({ projectId }: Props) {
         apiKeyMissing={!apiKeyInput.trim()}
         checkerScriptMissing={!checkerScript.trim()}
         onOpenSettings={(anchorEl) => setSettingsAnchorEl(anchorEl)}
-        onCheckRunAll={runCheckAll}
+        onCheckRunAll={beginCheckRunAll}
         checkRunAllDisabled={
           !checkerScript.trim() ||
           students.length === 0 ||
@@ -776,7 +820,8 @@ export default function ProjectWorkspacePage({ projectId }: Props) {
           Boolean(deleteConfirmFilename) ||
           annotateAllPending ||
           annotateOnePending ||
-          annotateOptionsOpen
+          annotateOptionsOpen ||
+          bulkSelectionMode !== null
         }
         checkRunAllPending={checkRunAllPending}
         onAnnotateAll={beginAnnotateAll}
@@ -789,9 +834,18 @@ export default function ProjectWorkspacePage({ projectId }: Props) {
           Boolean(deleteConfirmFilename) ||
           annotateAllPending ||
           annotateOnePending ||
-          annotateOptionsOpen
+          annotateOptionsOpen ||
+          bulkSelectionMode !== null
         }
         annotateAllPending={annotateAllPending}
+      />
+
+      <BulkSourceSelectionDialog
+        open={bulkSelectionMode !== null}
+        mode={bulkSelectionMode ?? "check"}
+        filenames={studentsSorted.map((s) => s.filename)}
+        onClose={() => setBulkSelectionMode(null)}
+        onConfirm={handleBulkSelectionConfirm}
       />
 
       <CheckRunAllDialog
@@ -812,7 +866,6 @@ export default function ProjectWorkspacePage({ projectId }: Props) {
       />
       <AnnotateOptionsDialog
         open={annotateOptionsOpen}
-        scope={annotateOptionsScope}
         onClose={() => setAnnotateOptionsOpen(false)}
         onStart={handleAnnotateOptionsStart}
       />

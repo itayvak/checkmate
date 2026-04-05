@@ -140,7 +140,7 @@ export default function CheckRunMatrixDialog({ open, onClose, students }: Props)
         </DialogContentText>
         {!anyCheckData ? (
           <Typography variant="body2" color="text.secondary">
-            No check runs yet. Run &quot;Check run all&quot; or check a single source first.
+            No check runs yet. Run &quot;Check run&quot; on selected sources or check a single source first.
           </Typography>
         ) : (
           <TableContainer

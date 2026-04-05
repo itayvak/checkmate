@@ -1,7 +1,10 @@
 """Local dev entry (backwards compatible): python run.py"""
 
+import os
+
 from app import app
 
 
 if __name__ == "__main__":
-    app.run(port=5000, debug=True)
+    host = os.environ.get("FLASK_HOST", "0.0.0.0")
+    app.run(host=host, port=5000)

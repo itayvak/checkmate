@@ -78,7 +78,7 @@ export default function WorkspaceTopBar({
               )
             }
           >
-            Check run all
+            Check run
           </Button>
           <Button
             variant="contained"
@@ -92,7 +92,7 @@ export default function WorkspaceTopBar({
               )
             }
           >
-            Annotate all
+            Annotate
           </Button>
           <Badge
             color="error"

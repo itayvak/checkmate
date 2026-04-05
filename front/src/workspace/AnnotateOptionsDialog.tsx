@@ -10,28 +10,23 @@ import {
   Typography,
 } from "@mui/material";
 
-export type AnnotateScope = "all" | "one";
-
 type Props = {
   open: boolean;
-  scope: AnnotateScope;
   onClose: () => void;
   /** Called with optional extra instructions when the user starts. */
   onStart: (extraInstructions: string) => void;
 };
 
-export default function AnnotateOptionsDialog({ open, scope, onClose, onStart }: Props) {
+export default function AnnotateOptionsDialog({ open, onClose, onStart }: Props) {
   const [extra, setExtra] = useState("");
 
   useEffect(() => {
     if (!open) setExtra("");
   }, [open]);
 
-  const title = scope === "all" ? "Annotate all sources" : "Annotate only this source";
-
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle>{title}</DialogTitle>
+      <DialogTitle>Annotate this source</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ pt: 0.5 }}>
           <Typography variant="body2" color="text.secondary">

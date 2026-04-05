@@ -28,7 +28,7 @@ export default function AnnotateAllDialog({ open, progress, onCancel }: Props) {
       fullWidth
       maxWidth="sm"
     >
-      <DialogTitle>Annotate all</DialogTitle>
+      <DialogTitle>Annotate</DialogTitle>
       <DialogContent>
         {progress ? (
           <Stack spacing={2}>

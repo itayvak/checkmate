@@ -2,7 +2,7 @@ import os
 import uuid
 from typing import Any, Optional
 
-from flask import jsonify, redirect, render_template, request, url_for
+from flask import jsonify, request, url_for
 
 from ...db import (
     list_projects,
@@ -76,37 +76,6 @@ def create_project():
             "project_id": project_id,
             "redirect_url": url_for("projects.project_workspace", project_id=project_id),
         }
-    )
-
-
-@bp.get("/projects/<project_id>")
-def project_workspace(project_id: str):
-    project = load_project(project_id)
-    if not project:
-        # `/projects` is JSON now (for React), so redirect to the app root.
-        return redirect(url_for("main.index"))
-
-    student_set = load_project_source_set(project_id) or {"files": []}
-    files = student_set.get("files")
-    if not isinstance(files, list):
-        files = []
-
-    last_batch_id = (project.get("last_batch_id") or "").strip()
-    last_grading_session_id = (project.get("last_grading_session_id") or "").strip()
-    return render_template(
-        "project_workspace.html",
-        project_id=project_id,
-        project_name=project.get("name") or "Untitled project",
-        assignment_name=project.get("assignment_name") or "",
-        model_solution_name=project.get("model_solution_name") or "",
-        checker_script=project.get("checker_script") or "",
-        students_count=len(files),
-        last_batch_id=last_batch_id,
-        last_batch_exists=bool(last_batch_id and load_batch_run_session(last_batch_id)),
-        last_grading_session_id=last_grading_session_id,
-        last_grading_exists=bool(
-            last_grading_session_id and load_grading_session(last_grading_session_id)
-        ),
     )
 
 

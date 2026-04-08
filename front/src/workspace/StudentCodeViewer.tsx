@@ -5,6 +5,7 @@ import type { editor } from "monaco-editor";
 import { addProjectAnnotation, type LineAnnotation, type ProjectComment } from "../api";
 import { useAppColors } from "../MuiTheme";
 import ReplaceStaleAnnotationDialog from "./ReplaceStaleAnnotationDialog";
+import { buildLineAnnotationMap } from "./lineAnnotations";
 
 /** Inset cards from rail edges + small horizontal nudge so selection stays inside the scrollport. */
 const ANNOTATION_RAIL_CARD_INSET = { left: 16, right: 16 } as const;
@@ -20,68 +21,10 @@ type Props = {
   sourceFilename: string;
   workspaceBusy?: boolean;
   onAnnotationsChanged?: () => void;
+  /** When set with a line number, that line is highlighted; clicks do not change selection. */
+  reviewMode?: boolean;
+  reviewFocusLine?: number | null;
 };
-
-type ResolvedLineComment = {
-  title: string;
-  details: string;
-  showDetails: boolean;
-  /** `comment_id` points to a library entry that no longer exists. */
-  isStaleLibraryRef?: boolean;
-};
-
-function resolveLibraryAnnotation(
-  cid: string,
-  byId: Map<string, ProjectComment>,
-  seenCommentIds: Set<string>,
-): ResolvedLineComment {
-  const lib = byId.get(cid);
-  if (!lib) {
-    return {
-      title: "(deleted comment)",
-      details: "",
-      showDetails: false,
-      isStaleLibraryRef: true,
-    };
-  }
-  const t = (lib.title || "").trim() || "(deleted comment)";
-  const det = (lib.details || "").trim();
-  const first = !seenCommentIds.has(cid);
-  seenCommentIds.add(cid);
-  return {
-    title: t,
-    details: det,
-    showDetails: first && det.length > 0,
-    isStaleLibraryRef: false,
-  };
-}
-
-function buildLineAnnotationMap(
-  annotations: LineAnnotation[] | undefined,
-  commentLibrary: ProjectComment[],
-): Map<number, ResolvedLineComment> {
-  const byId = new Map(commentLibrary.map((c) => [c.id, c]));
-  const sorted = [...(annotations ?? [])]
-    .filter((a) => a.line != null)
-    .sort((a, b) => Number(a.line) - Number(b.line));
-  const seenIds = new Set<string>();
-  const map = new Map<number, ResolvedLineComment>();
-  for (const a of sorted) {
-    if (a.line == null) continue;
-    const ln = Math.floor(Number(a.line));
-    if (!Number.isFinite(ln) || ln < 1) continue;
-
-    const direct = a.comment != null && String(a.comment).trim() !== "" ? String(a.comment).trim() : "";
-    if (direct) {
-      map.set(ln, { title: direct, details: "", showDetails: true, isStaleLibraryRef: false });
-      continue;
-    }
-    const cid = a.comment_id != null ? String(a.comment_id).trim() : "";
-    if (!cid) continue;
-    map.set(ln, resolveLibraryAnnotation(cid, byId, seenIds));
-  }
-  return map;
-}
 
 function InlineAnnotationCard({
   lineNum,
@@ -91,6 +34,7 @@ function InlineAnnotationCard({
   active,
   staleLibraryRef,
   replaceDisabled,
+  reviewMode,
   onSelect,
   onReplaceRequest,
 }: {
@@ -101,6 +45,7 @@ function InlineAnnotationCard({
   active: boolean;
   staleLibraryRef?: boolean;
   replaceDisabled?: boolean;
+  reviewMode?: boolean;
   onSelect: () => void;
   onReplaceRequest?: () => void;
 }) {
@@ -110,6 +55,7 @@ function InlineAnnotationCard({
     <Alert
       onClick={(e) => {
         e.stopPropagation();
+        if (reviewMode) return;
         if (replaceBlocked) {
           onSelect();
           return;
@@ -158,6 +104,8 @@ export default function StudentCodeViewer({
   sourceFilename,
   workspaceBusy,
   onAnnotationsChanged,
+  reviewMode = false,
+  reviewFocusLine = null,
 }: Props) {
   const colors = useAppColors();
   const monacoThemeName =
@@ -183,12 +131,25 @@ export default function StudentCodeViewer({
   const [commentsListDetached, setCommentsListDetached] = useState(false);
   const commentsListDetachedRef = useRef(false);
   const [replaceLine, setReplaceLine] = useState<number | null>(null);
+  const reviewModeRef = useRef(reviewMode);
+  useEffect(() => {
+    reviewModeRef.current = reviewMode;
+  }, [reviewMode]);
+
   useEffect(() => {
     setReplaceLine(null);
   }, [sourceFilename, projectId]);
   useEffect(() => {
     commentsListDetachedRef.current = commentsListDetached;
   }, [commentsListDetached]);
+
+  const effectiveActiveLine =
+    reviewMode && reviewFocusLine != null ? reviewFocusLine : activeAnnotatedLine;
+
+  useEffect(() => {
+    if (!reviewMode || reviewFocusLine == null) return;
+    editorRef.current?.revealLineInCenter(reviewFocusLine);
+  }, [reviewMode, reviewFocusLine]);
 
   const lineAnnotationMap = useMemo(
     () => buildLineAnnotationMap(annotations, commentLibrary),
@@ -278,7 +239,7 @@ export default function StudentCodeViewer({
         endIdx >= 0 ? endIdx + 2 : model.getLineMaxColumn(lineNum);
 
       const className =
-        activeAnnotatedLine != null && lineNum === activeAnnotatedLine
+        effectiveActiveLine != null && lineNum === effectiveActiveLine
           ? annotatedLineDecorationActiveClassName
           : annotatedLineDecorationClassName;
 
@@ -296,7 +257,7 @@ export default function StudentCodeViewer({
     annotatedLineDecorationClassName,
     annotatedLineDecorationHitClassName,
     annotatedLines,
-    activeAnnotatedLine,
+    effectiveActiveLine,
   ]);
 
   useEffect(() => {
@@ -417,6 +378,7 @@ export default function StudentCodeViewer({
           editorDisposablesRef.current = [];
           editorDisposablesRef.current.push(
             ed.onMouseDown((e) => {
+              if (reviewModeRef.current) return;
               const pos = (e.target as any)?.position;
               const lineNumber = typeof pos?.lineNumber === "number" ? pos.lineNumber : null;
               if (lineNumber == null) return;
@@ -493,7 +455,7 @@ export default function StudentCodeViewer({
             }}
           >
             {overlayLayout.items.map(({ lineNum, title, details, showDetails, isStaleLibraryRef, top }) => {
-              const selected = activeAnnotatedLine === lineNum;
+              const selected = effectiveActiveLine === lineNum;
               return (
               <div
                 key={lineNum}
@@ -522,11 +484,12 @@ export default function StudentCodeViewer({
                   title={title}
                   details={details}
                   showDetails={showDetails}
-                  active={activeAnnotatedLine === lineNum}
+                  active={effectiveActiveLine === lineNum}
                   staleLibraryRef={Boolean(isStaleLibraryRef)}
                   replaceDisabled={Boolean(workspaceBusy)}
+                  reviewMode={reviewMode}
                   onReplaceRequest={
-                    isStaleLibraryRef
+                    isStaleLibraryRef && !reviewMode
                       ? () => {
                           setReplaceLine(lineNum);
                         }
@@ -548,6 +511,7 @@ export default function StudentCodeViewer({
         lineNum={replaceLine ?? 0}
         comments={commentLibrary}
         disabled={Boolean(workspaceBusy)}
+        mode="stale"
         onClose={() => setReplaceLine(null)}
         onPick={async (commentId) => {
           if (replaceLine == null) return;

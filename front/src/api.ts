@@ -537,3 +537,21 @@ export async function addProjectAnnotation(
   return (await res.json()) as AddProjectAnnotationResponse;
 }
 
+export type DeleteProjectAnnotationResponse =
+  | { ok: true; annotation: { annotations?: LineAnnotation[]; ai_improvement?: string } }
+  | { ok: false; error: string };
+
+export async function deleteProjectAnnotation(
+  projectId: string,
+  params: { filename: string; line: number },
+): Promise<DeleteProjectAnnotationResponse> {
+  const fd = new FormData();
+  fd.append("only_filename", params.filename);
+  fd.append("line", String(params.line));
+  const res = await fetch(`/api/projects/${encodeURIComponent(projectId)}/annotations/delete`, {
+    method: "POST",
+    body: fd,
+  });
+  return (await res.json()) as DeleteProjectAnnotationResponse;
+}
+

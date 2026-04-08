@@ -20,6 +20,8 @@ type Props = {
   lineNum: number;
   comments: ProjectComment[];
   disabled: boolean;
+  /** `stale`: broken library link. `review`: teacher chose Replace in review mode. */
+  mode?: "stale" | "review";
   onClose: () => void;
   onPick: (commentId: string) => Promise<void>;
 };
@@ -29,6 +31,7 @@ export default function ReplaceStaleAnnotationDialog({
   lineNum,
   comments,
   disabled,
+  mode = "stale",
   onClose,
   onPick,
 }: Props) {
@@ -67,13 +70,24 @@ export default function ReplaceStaleAnnotationDialog({
     }
   };
 
+  const body =
+    mode === "review" ? (
+      <>
+        Line {lineNum}: choose a comment from your library to replace this annotation.
+      </>
+    ) : (
+      <>
+        Line {lineNum}: the linked library comment was deleted. Choose a comment from your library to
+        replace it.
+      </>
+    );
+
   return (
     <Dialog open={open} onClose={picking ? undefined : onClose} fullWidth maxWidth="sm">
       <DialogTitle>Replace annotation</DialogTitle>
       <DialogContent>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-          Line {lineNum}: the linked library comment was deleted. Choose a comment from your library to
-          replace it.
+          {body}
         </Typography>
         {comments.length === 0 ? (
           <Typography variant="body2" color="text.secondary">

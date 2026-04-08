@@ -76,6 +76,7 @@ export type AppThemeColors = AppColors & { mode: PaletteMode };
 export const borderRadius = {
   normal: 24,
   small: 8,
+  full: 9999,
 };
 
 export const font = {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Accordion,
   AccordionDetails,
@@ -13,14 +13,24 @@ import {
 } from "@mui/material";
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
-import type { ProjectComment, RunCheckerResponse, WorkspaceStudent } from "../api";
+import RateReviewRoundedIcon from "@mui/icons-material/RateReviewRounded";
+import {
+  addProjectAnnotation,
+  deleteProjectAnnotation,
+  type ProjectComment,
+  type RunCheckerResponse,
+  type WorkspaceStudent,
+} from "../api";
 import { font } from "../MuiTheme.tsx";
+import AnnotationReviewToolbar from "./AnnotationReviewToolbar";
 import CheckRunResults from "./CheckRunResults";
 import {
   checkRunPassedTotal,
   computeAnnotationGrade,
   getDisplayedStudentSummary,
 } from "./checkRunStats";
+import { getReviewQueueLineNumbers } from "./lineAnnotations";
+import ReplaceStaleAnnotationDialog from "./ReplaceStaleAnnotationDialog";
 import StudentCodeViewer from "./StudentCodeViewer";
 import { AutoFixHighRounded, TerminalRounded } from "@mui/icons-material";
 
@@ -29,8 +39,8 @@ type Props = {
   projectId: string;
   /** Resolves `comment_id` on line annotations to message text. */
   commentLibrary: ProjectComment[];
-  /** Called after a stale annotation is replaced so workspace data can refresh. */
-  onAnnotationsChanged?: () => void;
+  /** Called after annotations are mutated; may return a promise (e.g. workspace refresh). */
+  onAnnotationsChanged?: () => void | Promise<void>;
   checkerScriptPresent: boolean;
   /** AI settings include an API key — required to run annotation. */
   canAnnotate: boolean;
@@ -109,11 +119,136 @@ export default function SelectedSourceView({
 }: Props) {
   const [checkPanelExpanded, setCheckPanelExpanded] = useState(false);
   const [summaryPanelExpanded, setSummaryPanelExpanded] = useState(true);
+  const [reviewMode, setReviewMode] = useState(false);
+  const [reviewIndex, setReviewIndex] = useState(0);
+  const [reviewReplaceOpen, setReviewReplaceOpen] = useState(false);
+  const [reviewActionBusy, setReviewActionBusy] = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
+
+  const lineCount = useMemo(() => {
+    const c = student.code?.trim() ? student.code : "No source code available.";
+    return c.split("\n").length;
+  }, [student.code]);
+
+  const reviewLineNumbers = useMemo(
+    () =>
+      getReviewQueueLineNumbers(
+        student.annotation?.annotations,
+        commentLibrary,
+        lineCount,
+      ),
+    [student.annotation?.annotations, commentLibrary, lineCount],
+  );
+
+  const reviewQueueKey = useMemo(() => reviewLineNumbers.join(","), [reviewLineNumbers]);
+
+  const canStartReview = reviewLineNumbers.length > 0 && !workspaceBusy;
 
   useEffect(() => {
     setCheckPanelExpanded(false);
     setSummaryPanelExpanded(true);
+    setReviewMode(false);
+    setReviewIndex(0);
+    setReviewReplaceOpen(false);
+    setReviewError(null);
   }, [student.filename]);
+
+  useEffect(() => {
+    if (!reviewMode) return;
+    if (reviewLineNumbers.length === 0) {
+      setReviewMode(false);
+      setReviewIndex(0);
+      return;
+    }
+    setReviewIndex((prev) => Math.min(prev, reviewLineNumbers.length - 1));
+  }, [reviewMode, reviewQueueKey, reviewLineNumbers.length]);
+
+  const exitReview = useCallback(() => {
+    setReviewMode(false);
+    setReviewIndex(0);
+    setReviewReplaceOpen(false);
+    setReviewError(null);
+  }, []);
+
+  const refreshAfterAnnotationChange = useCallback(async () => {
+    await Promise.resolve(onAnnotationsChanged?.());
+  }, [onAnnotationsChanged]);
+
+  const handleReviewKeep = useCallback(() => {
+    setReviewError(null);
+    if (reviewIndex + 1 >= reviewLineNumbers.length) {
+      exitReview();
+      return;
+    }
+    setReviewIndex((i) => i + 1);
+  }, [reviewIndex, reviewLineNumbers.length, exitReview]);
+
+  const handleReviewBack = useCallback(() => {
+    setReviewError(null);
+    setReviewIndex((i) => Math.max(0, i - 1));
+  }, []);
+
+  const handleReviewDelete = useCallback(async () => {
+    const line = reviewLineNumbers[reviewIndex];
+    if (line == null) return;
+    setReviewError(null);
+    setReviewActionBusy(true);
+    try {
+      const r = await deleteProjectAnnotation(projectId, {
+        filename: student.filename,
+        line,
+      });
+      if (!r.ok) {
+        throw new Error(r.error || "Could not delete annotation.");
+      }
+      await refreshAfterAnnotationChange();
+    } catch (e) {
+      setReviewError((e as Error).message || "Could not delete annotation.");
+    } finally {
+      setReviewActionBusy(false);
+    }
+  }, [
+    projectId,
+    refreshAfterAnnotationChange,
+    reviewIndex,
+    reviewLineNumbers,
+    student.filename,
+  ]);
+
+  const handleReviewReplacePick = useCallback(
+    async (commentId: string) => {
+      const line = reviewLineNumbers[reviewIndex];
+      if (line == null) return;
+      const r = await addProjectAnnotation(projectId, {
+        filename: student.filename,
+        line,
+        commentId,
+      });
+      if (!r.ok) {
+        throw new Error(r.error || "Could not update annotation.");
+      }
+      await refreshAfterAnnotationChange();
+      setReviewReplaceOpen(false);
+      if (reviewIndex + 1 >= reviewLineNumbers.length) {
+        exitReview();
+      } else {
+        setReviewIndex((i) => i + 1);
+      }
+    },
+    [
+      exitReview,
+      projectId,
+      refreshAfterAnnotationChange,
+      reviewIndex,
+      reviewLineNumbers,
+      student.filename,
+    ],
+  );
+
+  const reviewFocusLine =
+    reviewMode && reviewLineNumbers.length > 0
+      ? reviewLineNumbers[Math.min(reviewIndex, reviewLineNumbers.length - 1)]
+      : null;
 
   const checkTitle =
     student.check?.check_cases && student.check.check_cases.length > 0
@@ -190,6 +325,19 @@ export default function SelectedSourceView({
             >
               Annotate this source
             </Button>
+            <Button
+              variant="outlined"
+              size="small"
+              disabled={!canStartReview || reviewMode}
+              onClick={() => {
+                setReviewError(null);
+                setReviewIndex(0);
+                setReviewMode(true);
+              }}
+              startIcon={<RateReviewRoundedIcon />}
+            >
+              Review annotations
+            </Button>
           </Stack>
 
           {student.annotation && summaryText ? (
@@ -232,6 +380,8 @@ export default function SelectedSourceView({
             sourceFilename={student.filename}
             workspaceBusy={workspaceBusy}
             onAnnotationsChanged={onAnnotationsChanged}
+            reviewMode={reviewMode}
+            reviewFocusLine={reviewFocusLine}
           />
 
           {student.check ? (
@@ -254,6 +404,33 @@ export default function SelectedSourceView({
           ) : null}
         </Stack>
       </Paper>
+      <AnnotationReviewToolbar
+        open={reviewMode && reviewLineNumbers.length > 0}
+        reviewIndex={reviewIndex}
+        total={reviewLineNumbers.length}
+        disabled={workspaceBusy || reviewActionBusy}
+        replaceDisabled={commentLibrary.length === 0}
+        onKeep={handleReviewKeep}
+        onBack={handleReviewBack}
+        backDisabled={reviewIndex <= 0}
+        onReplace={() => {
+          setReviewError(null);
+          setReviewReplaceOpen(true);
+        }}
+        onDelete={() => void handleReviewDelete()}
+        onExitReview={exitReview}
+        error={reviewError}
+        onClearError={() => setReviewError(null)}
+      />
+      <ReplaceStaleAnnotationDialog
+        open={reviewReplaceOpen}
+        lineNum={reviewLineNumbers[reviewIndex] ?? 0}
+        comments={commentLibrary}
+        disabled={workspaceBusy || reviewActionBusy}
+        mode="review"
+        onClose={() => setReviewReplaceOpen(false)}
+        onPick={handleReviewReplacePick}
+      />
     </Paper>
   );
 }

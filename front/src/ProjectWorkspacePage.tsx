@@ -1007,14 +1007,14 @@ export default function ProjectWorkspacePage({ projectId }: Props) {
               student={selectedStudent}
               projectId={projectId}
               commentLibrary={commentLibrary}
-              onAnnotationsChanged={() => {
-                void refreshWorkspace({ preserveSelection: true })
-                  .then(() => {
-                    showToast("Annotation updated.");
-                  })
-                  .catch((e) => {
-                    showToast((e as Error).message || "Failed to refresh workspace.", "error");
-                  });
+              onAnnotationsChanged={async () => {
+                try {
+                  await refreshWorkspace({ preserveSelection: true });
+                  showToast("Annotation updated.");
+                } catch (e) {
+                  showToast((e as Error).message || "Failed to refresh workspace.", "error");
+                  throw e;
+                }
               }}
               checkerScriptPresent={Boolean(checkerScript.trim())}
               canAnnotate={Boolean(apiKeyInput.trim())}

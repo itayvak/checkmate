@@ -32,6 +32,7 @@ import AnnotateAllDialog from "./workspace/AnnotateAllDialog";
 import BulkSourceSelectionDialog from "./workspace/BulkSourceSelectionDialog";
 import CheckRunMatrixDialog from "./workspace/CheckRunMatrixDialog";
 import GradesSummaryDialog from "./workspace/GradesSummaryDialog";
+import ReferenceMaterialsDialog from "./workspace/ReferenceMaterialsDialog";
 import { sortSourcesByFilename } from "./workspace/sortSources";
 import {
   DEFAULT_MODEL,
@@ -50,6 +51,9 @@ export default function ProjectWorkspacePage({ projectId }: Props) {
   const [projectName, setProjectName] = useState("Project workspace");
   const [assignmentName, setAssignmentName] = useState("");
   const [modelSolutionName, setModelSolutionName] = useState("");
+  const [assignmentMd, setAssignmentMd] = useState("");
+  const [modelSolutionPy, setModelSolutionPy] = useState("");
+  const [referenceMaterialsOpen, setReferenceMaterialsOpen] = useState(false);
   const [students, setStudents] = useState<WorkspaceStudent[]>([]);
   const [selectedFilename, setSelectedFilename] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -123,6 +127,8 @@ export default function ProjectWorkspacePage({ projectId }: Props) {
     setProjectName(data.project?.name || "Project workspace");
     setAssignmentName(data.project?.assignment_name || "");
     setModelSolutionName(data.project?.model_solution_name || "");
+    setAssignmentMd(data.project?.assignment_md ?? "");
+    setModelSolutionPy(data.project?.model_solution_py ?? "");
     setCheckerScript(data.project?.checker_script || "");
     setCommentLibrary(data.project?.comment_library ?? []);
     const rows = data.students || [];
@@ -152,6 +158,8 @@ export default function ProjectWorkspacePage({ projectId }: Props) {
         setProjectName(data.project?.name || "Project workspace");
         setAssignmentName(data.project?.assignment_name || "");
         setModelSolutionName(data.project?.model_solution_name || "");
+        setAssignmentMd(data.project?.assignment_md ?? "");
+        setModelSolutionPy(data.project?.model_solution_py ?? "");
         setCheckerScript(data.project?.checker_script || "");
         setCommentLibrary(data.project?.comment_library ?? []);
         const rows = data.students || [];
@@ -807,6 +815,7 @@ export default function ProjectWorkspacePage({ projectId }: Props) {
     <Box sx={{ height: "100vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
       <WorkspaceTopBar
         projectName={projectName}
+        onOpenReferenceMaterials={() => setReferenceMaterialsOpen(true)}
         apiKeyMissing={!apiKeyInput.trim()}
         checkerScriptMissing={!checkerScript.trim()}
         onOpenSettings={(anchorEl) => setSettingsAnchorEl(anchorEl)}
@@ -863,6 +872,12 @@ export default function ProjectWorkspacePage({ projectId }: Props) {
         onClose={() => setGradesSummaryOpen(false)}
         students={studentsSorted}
         commentLibrary={commentLibrary}
+      />
+      <ReferenceMaterialsDialog
+        open={referenceMaterialsOpen}
+        onClose={() => setReferenceMaterialsOpen(false)}
+        assignmentMd={assignmentMd}
+        modelSolutionPy={modelSolutionPy}
       />
       <AnnotateOptionsDialog
         open={annotateOptionsOpen}

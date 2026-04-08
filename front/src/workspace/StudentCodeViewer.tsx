@@ -5,6 +5,7 @@ import type { editor } from "monaco-editor";
 import { addProjectAnnotation, type LineAnnotation, type ProjectComment } from "../api";
 import { useAppColors } from "../MuiTheme";
 import ReplaceStaleAnnotationDialog from "./ReplaceStaleAnnotationDialog";
+import { checkmateCodeThemeId, defineCheckmateCodeThemes } from "./monacoCheckmateTheme";
 
 /** Inset cards from rail edges + small horizontal nudge so selection stays inside the scrollport. */
 const ANNOTATION_RAIL_CARD_INSET = { left: 16, right: 16 } as const;
@@ -160,8 +161,7 @@ export default function StudentCodeViewer({
   onAnnotationsChanged,
 }: Props) {
   const colors = useAppColors();
-  const monacoThemeName =
-    colors.mode === "dark" ? "checkmate-code-dark" : "checkmate-code-light";
+  const monacoThemeName = checkmateCodeThemeId(colors.mode);
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<any>(null);
   const commentsPaneRef = useRef<HTMLDivElement | null>(null);
@@ -393,18 +393,7 @@ export default function StudentCodeViewer({
         language="python"
         beforeMount={(monaco) => {
           monacoRef.current = monaco;
-          monaco.editor.defineTheme("checkmate-code-dark", {
-            base: "vs-dark",
-            inherit: true,
-            rules: [],
-            colors: { "editor.background": colors.surfaceContainerLow },
-          });
-          monaco.editor.defineTheme("checkmate-code-light", {
-            base: "vs",
-            inherit: true,
-            rules: [],
-            colors: { "editor.background": colors.surfaceContainerLow },
-          });
+          defineCheckmateCodeThemes(monaco, colors.surfaceContainerLow);
         }}
         key={monacoThemeName}
         theme={monacoThemeName}

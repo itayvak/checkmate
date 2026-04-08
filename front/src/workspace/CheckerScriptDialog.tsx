@@ -20,6 +20,7 @@ import Editor from "@monaco-editor/react";
 import type { RunCheckerResponse } from "../api";
 import CheckRunResults from "./CheckRunResults";
 import { borderRadius, useAppColors } from "../MuiTheme.tsx";
+import { checkmateCodeThemeId, defineCheckmateCodeThemes } from "./monacoCheckmateTheme";
 
 type Props = {
   open: boolean;
@@ -44,8 +45,7 @@ export default function CheckerScriptDialog(props: Props) {
   const colors = useAppColors();
   const [editorValue, setEditorValue] = useState(props.checkerScript);
   const hasUnsavedChanges = editorValue !== props.checkerScript;
-  const monacoThemeName =
-    colors.mode === "dark" ? "checkmate-code-dark" : "checkmate-code-light";
+  const monacoThemeName = checkmateCodeThemeId(colors.mode);
 
   useEffect(() => {
     if (props.open) {
@@ -69,22 +69,7 @@ export default function CheckerScriptDialog(props: Props) {
               defaultLanguage="python"
               language="python"
               beforeMount={(monaco) => {
-                monaco.editor.defineTheme("checkmate-code-dark", {
-                  base: "vs-dark",
-                  inherit: true,
-                  rules: [],
-                  colors: {
-                    "editor.background": colors.surfaceContainerLow,
-                  },
-                });
-                monaco.editor.defineTheme("checkmate-code-light", {
-                  base: "vs",
-                  inherit: true,
-                  rules: [],
-                  colors: {
-                    "editor.background": colors.surfaceContainerLow,
-                  },
-                });
+                defineCheckmateCodeThemes(monaco, colors.surfaceContainerLow);
               }}
               key={monacoThemeName}
               theme={monacoThemeName}

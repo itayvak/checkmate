@@ -1,5 +1,3 @@
-"""Local dev entry (backwards compatible): python run.py"""
-
 import os
 
 from app import app

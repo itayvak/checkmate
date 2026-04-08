@@ -11,11 +11,12 @@ import {
 } from "@mui/material";
 import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
 import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded";
-import { AutoFixHighRounded, TerminalRounded } from "@mui/icons-material";
+import { AutoFixHighRounded, LibraryBooksRounded, TerminalRounded } from "@mui/icons-material";
 import ThemeModeToggle from "../ThemeModeToggle.tsx";
 
 type Props = {
   projectName: string;
+  onOpenReferenceMaterials: () => void;
   onOpenSettings: (anchorEl: HTMLElement) => void;
   onCheckRunAll: () => void;
   checkRunAllDisabled: boolean;
@@ -29,6 +30,7 @@ type Props = {
 
 export default function WorkspaceTopBar({
   projectName,
+  onOpenReferenceMaterials,
   onOpenSettings,
   onCheckRunAll,
   checkRunAllDisabled,
@@ -66,6 +68,13 @@ export default function WorkspaceTopBar({
         <Box sx={{ flexGrow: 1 }} />
         <Stack direction="row" spacing={0.5}>
           <ThemeModeToggle />
+          <Button
+            variant="outlined"
+            onClick={onOpenReferenceMaterials}
+            startIcon={<LibraryBooksRounded />}
+          >
+            Reference Materials
+          </Button>
           <Button
             variant="contained"
             disabled={checkRunAllDisabled}

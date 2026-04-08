@@ -61,6 +61,10 @@ export type WorkspaceDataResponse = {
     name: string;
     assignment_name: string;
     model_solution_name: string;
+    /** Raw markdown text of the assignment description (may be empty). */
+    assignment_md: string;
+    /** Raw Python source of the model solution (may be empty). */
+    model_solution_py: string;
     checker_script: string;
     comment_library: ProjectComment[];
   };

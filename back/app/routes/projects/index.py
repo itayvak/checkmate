@@ -157,6 +157,8 @@ def project_workspace_data(project_id: str):
                 "name": project.get("name") or "",
                 "assignment_name": project.get("assignment_name") or "",
                 "model_solution_name": project.get("model_solution_name") or "",
+                "assignment_md": project.get("assignment_md") or "",
+                "model_solution_py": project.get("model_solution_py") or "",
                 "checker_script": project.get("checker_script") or "",
                 "comment_library": list_project_comments(project_id),
             },

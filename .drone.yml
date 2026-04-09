@@ -6,4 +6,5 @@ steps:
 - name: test
   image: python:alpine
   commands:
-  - echo success!
+  - cd front
+  - npm run lint

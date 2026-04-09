@@ -4,7 +4,7 @@ name: default
 
 steps:
 - name: test
-  image: python:alpine
+  image: node:alpine
   commands:
   - cd front
   - npm run lint

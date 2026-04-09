@@ -1,3 +1,4 @@
+[![Build Status](https://ci.itayvak.com/api/badges/itayvak/checkmate/status.svg?ref=refs/heads/main)](https://ci.itayvak.com/itayvak/checkmate)
 # Check Mate
 
 אפליקציה לבדיקה שוטפת של תר"צים ומבחנים בקוד.
